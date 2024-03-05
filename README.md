@@ -20,3 +20,4 @@ http://127.0.0.1:8000/docs
 
 https://www.youtube.com/watch?v=JVtGKA6OVvM
 https://www.youtube.com/watch?v=6joGkZMVX4o
+https://www.youtube.com/watch?v=NOT_pScEVFc
