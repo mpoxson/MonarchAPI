@@ -21,3 +21,6 @@ http://127.0.0.1:8000/docs
 https://www.youtube.com/watch?v=JVtGKA6OVvM
 https://www.youtube.com/watch?v=6joGkZMVX4o
 https://www.youtube.com/watch?v=NOT_pScEVFc
+
+https://stackoverflow.com/questions/58696716/how-to-export-databases-with-commands-azure-cli-on-python-script
+https://learn.microsoft.com/en-us/python/api/azure-mgmt-sql/azure.mgmt.sql.operations.databasesoperations?view=azure-python
