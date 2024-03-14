@@ -2,10 +2,10 @@ import os
 import pyodbc, struct
 from azure import identity
 
-from typing import Union
 from fastapi import FastAPI
-from pydantic import BaseModel
-
+import pandas as pd
+from datetime import datetime
+from fastapi.responses import FileResponse
 
 app = FastAPI()
 
@@ -13,17 +13,29 @@ app = FastAPI()
 async def root():
     return {"message": "Hello World"}
 
+#Need parameters for database name, server
 AZURE_SQL_CONNECTIONSTRING='Driver={ODBC Driver 18 for SQL Server};Server=tcp:monarchserver.database.windows.net,1433;Database=monarch;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30'
 
 @app.get("/all")
 def get_persons():
-    rows = []
+    rows = ""
     with get_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("Select * from [SalesLT].[Customer];")
 
-        for row in cursor.fetchall():
-            print(row)
+        
+        gang = (cursor.fetchall())
+        for tupler in cursor.description:
+            #get names of columns (first value in tuple)
+            
+        df = pd.DataFrame(gang)
+        df.to_csv('filename.csv', index=False)
+        print(len(gang))
+
+        #find file path and dynamically change string
+        rows = "File has been saved to: "
+
+
     return rows
 
 def get_conn():
