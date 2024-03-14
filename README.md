@@ -1,8 +1,12 @@
 # MonarchAPI
 
-- Install python
+- Download python
+- Download ODBC Driver 18 for SQL Server
 - pip install fastapi
 - pip install uvicorn
+- pip install pyodbc
+- pip install pydantic
+- pip install azure-identity
 
 uvicorn main:app --reload
 
@@ -24,3 +28,5 @@ https://www.youtube.com/watch?v=NOT_pScEVFc
 
 https://stackoverflow.com/questions/58696716/how-to-export-databases-with-commands-azure-cli-on-python-script
 https://learn.microsoft.com/en-us/python/api/azure-mgmt-sql/azure.mgmt.sql.operations.databasesoperations?view=azure-python
+
+https://github.com/MicrosoftDocs/sql-docs/issues/9622

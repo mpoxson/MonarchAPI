@@ -1,6 +1,11 @@
+import os
+import pyodbc, struct
+from azure import identity
+
+from typing import Union
 from fastapi import FastAPI
-from azure.identity import ClientSecretCredential
-from azure.mgmt.sql import SqlManagementClient
+from pydantic import BaseModel
+
 
 app = FastAPI()
 
@@ -8,28 +13,23 @@ app = FastAPI()
 async def root():
     return {"message": "Hello World"}
 
+AZURE_SQL_CONNECTIONSTRING='Driver={ODBC Driver 18 for SQL Server};Server=tcp:monarchserver.database.windows.net,1433;Database=monarch;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30'
 
+@app.get("/all")
+def get_persons():
+    rows = []
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute("Select * from [SalesLT].[Customer];")
 
-credentials = ClientSecretCredential(
-    client_id='0df6f4af-a67f-4483-9a00-f84e3d584edf',
-    client_secret='Z8b8Q~r7y5R-gbDFj.Mbhds6zCxk9Yk8p-8jldbs',
-    tenant_id='965de81c-fc98-4c53-9901-41bd93e26e06'
-)
+        for row in cursor.fetchall():
+            print(row)
+    return rows
 
-sql_client = SqlManagementClient(credentials, 'a7265b57-0f06-4af4-bf0b-ef7c691f13ba')
-
-poller = sql_client.databases.begin_export(
-    database_name='monarch',
-    server_name='monarchserver',
-    resource_group_name='MonarchGroup',
-    parameters={
-        # 'storage_key_type': 'StorageAccessKey',
-        # 'storage_key': '<your storage key>',
-        #'storage_uri': 'https://<your storage account>.blob.core.windows.net/<your blob container>/<name of output file>.bacpac',
-        'administrator_login': '',
-        'administrator_login_password': '',
-        'authentication_type': 'SQL'
-    }
-)
-
-print(poller.result())
+def get_conn():
+    credential = identity.DefaultAzureCredential(exclude_interactive_browser_credential=False)
+    token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("UTF-16-LE")
+    token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
+    SQL_COPT_SS_ACCESS_TOKEN = 1256  # This connection option is defined by microsoft in msodbcsql.h
+    conn = pyodbc.connect(AZURE_SQL_CONNECTIONSTRING, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+    return conn
