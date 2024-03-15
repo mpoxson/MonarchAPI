@@ -18,7 +18,8 @@ AZURE_SQL_CONNECTIONSTRING='Driver={ODBC Driver 18 for SQL Server};Server=tcp:mo
 
 @app.get("/all")
 def get_persons():
-    rows = ""
+    output = ""
+    column = []
     with get_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("Select * from [SalesLT].[Customer];")
@@ -27,16 +28,18 @@ def get_persons():
         gang = (cursor.fetchall())
         for tupler in cursor.description:
             #get names of columns (first value in tuple)
+            column.append(tupler[0])
             
+        gang.insert(0, column)
         df = pd.DataFrame(gang)
         df.to_csv('filename.csv', index=False)
         print(len(gang))
 
         #find file path and dynamically change string
-        rows = "File has been saved to: "
+        output = "File has been saved to Downloads "
 
 
-    return rows
+    return output
 
 def get_conn():
     credential = identity.DefaultAzureCredential(exclude_interactive_browser_credential=False)
