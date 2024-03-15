@@ -32,7 +32,10 @@ https://learn.microsoft.com/en-us/python/api/azure-mgmt-sql/azure.mgmt.sql.opera
 
 https://github.com/MicrosoftDocs/sql-docs/issues/9622
 
+-list table info: https://www.sisense.com/blog/sql-cheat-sheet-retrieving-column-description-sql-server/
+
 # References used
 
 - Connect to server and query: https://learn.microsoft.com/en-us/azure/azure-sql/database/azure-sql-python-quickstart?view=azuresql&tabs=windows%2Csql-inter
 - Convert to csv: https://stackoverflow.com/questions/6081008/dump-a-numpy-array-into-a-csv-file
+- list tables: https://dataedo.com/kb/query/azure-sql/list-of-tables-in-the-database

@@ -16,13 +16,13 @@ async def root():
 #Need parameters for database name, server
 AZURE_SQL_CONNECTIONSTRING='Driver={ODBC Driver 18 for SQL Server};Server=tcp:monarchserver.database.windows.net,1433;Database=monarch;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30'
 
-@app.get("/all")
-def get_persons():
+@app.get("/tables")
+def get_tables():
     output = ""
     column = []
     with get_conn() as conn:
         cursor = conn.cursor()
-        cursor.execute("Select * from [SalesLT].[Customer];")
+        cursor.execute("select schema_name(t.schema_id) as schema_name, t.name as table_name, t.create_date, t.modify_date from sys.tables t order by schema_name, table_name;")
 
         
         gang = (cursor.fetchall())
