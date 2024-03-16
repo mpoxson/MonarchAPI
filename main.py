@@ -14,26 +14,27 @@ async def root():
     return {"message": "Hello World"}
 
 #Need parameters for database name, server
-AZURE_SQL_CONNECTIONSTRING='Driver={ODBC Driver 18 for SQL Server};Server=tcp:monarchserver.database.windows.net,1433;Database=monarch;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30'
+AZURE_SQL_CONNECTIONSTRING=''
 
-@app.get("/tables")
-def get_tables():
+@app.get("/tables/{server_name}/{database_name}")
+def get_tables(server_name: str, database_name: str):
     output = ""
     column = []
-    with get_conn() as conn:
+    AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
+    with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
         cursor = conn.cursor()
         cursor.execute("select schema_name(t.schema_id) as schema_name, t.name as table_name, t.create_date, t.modify_date from sys.tables t order by schema_name, table_name;")
 
         
-        gang = (cursor.fetchall())
+        results = (cursor.fetchall())
         for tupler in cursor.description:
             #get names of columns (first value in tuple)
             column.append(tupler[0])
             
-        gang.insert(0, column)
-        df = pd.DataFrame(gang)
+        results.insert(0, column)
+        df = pd.DataFrame(results)
         df.to_csv('filename.csv', index=False)
-        print(len(gang))
+        print(len(results))
 
         #find file path and dynamically change string
         output = "File has been saved to Downloads "
@@ -41,7 +42,7 @@ def get_tables():
 
     return output
 
-def get_conn():
+def get_conn(AZURE_SQL_CONNECTIONSTRING : str):
     credential = identity.DefaultAzureCredential(exclude_interactive_browser_credential=False)
     token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("UTF-16-LE")
     token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
