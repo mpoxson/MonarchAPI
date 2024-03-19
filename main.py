@@ -32,15 +32,49 @@ def get_tables(server_name: str, database_name: str):
             column.append(tupler[0])
             
         results.insert(0, column)
-        df = pd.DataFrame(results)
-        df.to_csv('filename.csv', index=False)
-        print(len(results))
+        create_csv("table_info", results)
 
         #find file path and dynamically change string
         output = "File has been saved to Downloads "
 
 
     return output
+
+@app.get("/schemas/{server_name}/{database_name}")
+def get_tables(server_name: str, database_name: str):
+    output = ""
+    
+    AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
+    with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
+        cursor = conn.cursor()
+        cursor.execute("select schema_name(t.schema_id) as schema_name, t.name as table_name from sys.tables t  order by schema_name, table_name;")
+
+        results = (cursor.fetchall())
+        for table in results:
+            if table != "table_name":
+                print(type(table))
+                table_schema = table[0]
+                table_name = table[1]
+                #select everything from each table, make into csv
+                print(f"select * from {table_schema}.{table_name};")             
+                cursor.execute(f"select * from {table_schema}.{table_name};")
+                table_result = (cursor.fetchall())
+                create_csv(f"{table_schema}_{table_name}", table_result)
+            
+        #create_csv("test", results)
+        #find file path and dynamically change string
+
+        # print(results)
+
+        output = "File has been saved to Downloads "
+
+
+    return output
+
+def create_csv(filename: str, data):
+        df = pd.DataFrame(data)
+        df.to_csv(f'{filename}.csv', index=False)
+
 
 def get_conn(AZURE_SQL_CONNECTIONSTRING : str):
     credential = identity.DefaultAzureCredential(exclude_interactive_browser_credential=False)
