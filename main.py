@@ -69,11 +69,6 @@ def get_tables(server_name: str, database_name: str):
 
                 create_csv(f"{table_schema}_{table_name}", table_result)
             
-        #create_csv("test", results)
-        #find file path and dynamically change string
-
-        # print(results)
-
         output = "File has been saved to Downloads "
 
 
