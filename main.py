@@ -59,6 +59,14 @@ def get_tables(server_name: str, database_name: str):
                 print(f"select * from {table_schema}.{table_name};")             
                 cursor.execute(f"select * from {table_schema}.{table_name};")
                 table_result = (cursor.fetchall())
+
+                column = []
+                for tupler in cursor.description:
+                    #get names of columns (first value in tuple)
+                    column.append(tupler[0])
+
+                table_result.insert(0, column)
+
                 create_csv(f"{table_schema}_{table_name}", table_result)
             
         #create_csv("test", results)
