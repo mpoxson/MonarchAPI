@@ -1,17 +1,19 @@
-import os
-import pyodbc, struct
-from azure import identity
-
 from fastapi import FastAPI
-import pandas as pd
-from datetime import datetime
-from fastapi.responses import FileResponse
+import mysql.connector
 
 app = FastAPI()
 
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
+
+config = {
+    'user': 'admin',
+    'password': 'Cupcake0923&',
+    'host': 'monarchapi1.c3amcyc0kkom.us-east-2.rds.amazonaws.com',
+    'database': 'monarchapi1',
+    'port': 3306,
+}
 
 #Need parameters for database name, server
 AZURE_SQL_CONNECTIONSTRING=''
@@ -39,6 +41,19 @@ def get_tables(server_name: str, database_name: str):
 
 
     return output
+
+@app.get("/aws-connection/")
+def aws_connection():
+
+    conn = mysql.connector.connect(**config)
+    cursor = conn.cursor()
+
+        
+    cursor.execute("SELECT 1")
+    return {"Message": "Connection successful"}
+
+    #except mysql.Error as error:
+        #return {"message": f"Error connecting to MySQL database on AWS RDS: {error}"}
 
 @app.get("/schemas/{server_name}/{database_name}")
 def get_tables(server_name: str, database_name: str):
