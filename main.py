@@ -74,6 +74,31 @@ def get_tables(server_name: str, database_name: str):
 
     return output
 
+
+@app.get("/tables/columns")
+def get_tables(server_name: str, database_name: str):
+    output = ""
+    column = []
+    AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
+    with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT TAB.name AS TableName, TAB.object_id AS ObjectID, COL.name AS ColumnName, TYP.name AS DataTypeName, TYP.max_length AS MaxLength From sys.columns COL INNER JOIN sys.tables TAB On COL.object_id = TAB.object_id INNER JOIN sys.types TYP ON TYP.user_type_id = COL.user_type_id;")
+
+        
+        results = (cursor.fetchall())
+        for tupler in cursor.description:
+            #get names of columns (first value in tuple)
+            column.append(tupler[0])
+            
+        results.insert(0, column)
+        create_csv("column_info", results)
+
+        #find file path and dynamically change string
+        output = "File has been saved to Downloads "
+
+
+    return output
+
 def create_csv(filename: str, data):
         df = pd.DataFrame(data)
         df.to_csv(f'{filename}.csv', index=False)
