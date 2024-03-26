@@ -25,7 +25,7 @@ def get_tables(server_name: str, database_name: str):
     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
     with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
         cursor = conn.cursor()
-        cursor.execute("select schema_name(t.schema_id) as schema_name, t.name as table_name, t.create_date, t.modify_date from sys.tables t order by schema_name, table_name;")
+        cursor.execute("select schema_name(t.schema_id) as schema_name, t.name as table_name from sys.tables t order by schema_name, table_name;")
 
         
         results = (cursor.fetchall())
@@ -116,25 +116,22 @@ def get_conn(AZURE_SQL_CONNECTIONSTRING : str):
 
 @app.get("/aws")
 def get_tables():
-    ENDPOINT="monarch.cjgga6i4mae6.us-east-2.rds.amazonaws.com"
-    PORT="1433"
-    USER="admin"
-    REGION="us-east-2"
-    DBNAME="monarch"
-
-    #gets the credentials from .aws/credentials
-    #session = boto3.Session(profile_name='RDSCreds')
-    #client = session.client('rds')
-
-    #token = client.generate_db_auth_token(DBHostname=ENDPOINT, Port=PORT, DBUsername=USER, Region=REGION)
-
     try:
-        #conn = psycopg2.connect(host=ENDPOINT, port=PORT, database=DBNAME, user=USER, password=token, sslrootcert="SSLCERTIFICATE")
-        #conn = psycopg2.connect(host=ENDPOINT, port=PORT, user=USER, password=token, sslrootcert="SSLCERTIFICATE")
-        conn = pyodbc.connect('DRIVER={SQL Server};PORT=1433;SERVER=monarch.cjgga6i4mae6.us-east-2.rds.amazonaws.com;UID=admin;PWD=Admin1!Aws;')
+        conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=1433;SERVER=monarch.cjgga6i4mae6.us-east-2.rds.amazonaws.com;UID=;PWD=;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30')
         cur = conn.cursor()
-        cur.execute("""SELECT now()""")
+        cur.execute("""select schema_name(t.schema_id) as schema_name, t.name as table_name from sys.tables t order by schema_name, table_name;""")
         query_results = cur.fetchall()
         print(query_results)
     except Exception as e:
         print("Database connection failed due to {}".format(e))   
+
+#SELECT schema_name FROM information_schema.schemata;
+# ALL SCHEMA TABLES
+        
+#ToDo: List of query strings
+# Change name of functions
+# csv for aws
+# parameterize for aws
+        
+# Create front end that is pretty
+# Create targets for integrating
