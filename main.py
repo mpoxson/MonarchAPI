@@ -1,11 +1,13 @@
-import os
 import pyodbc, struct
 from azure import identity
 
 from fastapi import FastAPI
 import pandas as pd
-from datetime import datetime
-from fastapi.responses import FileResponse
+
+import psycopg2
+import sys
+import boto3
+import os
 
 app = FastAPI()
 
@@ -16,7 +18,7 @@ async def root():
 #Need parameters for database name, server
 AZURE_SQL_CONNECTIONSTRING=''
 
-@app.get("/tables/{server_name}/{database_name}")
+@app.get("/azure/tables/{server_name}/{database_name}")
 def get_tables(server_name: str, database_name: str):
     output = ""
     column = []
@@ -40,7 +42,7 @@ def get_tables(server_name: str, database_name: str):
 
     return output
 
-@app.get("/schemas/{server_name}/{database_name}")
+@app.get("/azure/schemas/{server_name}/{database_name}")
 def get_tables(server_name: str, database_name: str):
     output = ""
     
@@ -75,7 +77,7 @@ def get_tables(server_name: str, database_name: str):
     return output
 
 
-@app.get("/tables/columns")
+@app.get("/azure/tables/columns")
 def get_tables(server_name: str, database_name: str):
     output = ""
     column = []
@@ -111,3 +113,28 @@ def get_conn(AZURE_SQL_CONNECTIONSTRING : str):
     SQL_COPT_SS_ACCESS_TOKEN = 1256  # This connection option is defined by microsoft in msodbcsql.h
     conn = pyodbc.connect(AZURE_SQL_CONNECTIONSTRING, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
     return conn
+
+@app.get("/aws")
+def get_tables():
+    ENDPOINT="monarch.cjgga6i4mae6.us-east-2.rds.amazonaws.com"
+    PORT="1433"
+    USER="admin"
+    REGION="us-east-2"
+    DBNAME="monarch"
+
+    #gets the credentials from .aws/credentials
+    #session = boto3.Session(profile_name='RDSCreds')
+    #client = session.client('rds')
+
+    #token = client.generate_db_auth_token(DBHostname=ENDPOINT, Port=PORT, DBUsername=USER, Region=REGION)
+
+    try:
+        #conn = psycopg2.connect(host=ENDPOINT, port=PORT, database=DBNAME, user=USER, password=token, sslrootcert="SSLCERTIFICATE")
+        #conn = psycopg2.connect(host=ENDPOINT, port=PORT, user=USER, password=token, sslrootcert="SSLCERTIFICATE")
+        conn = pyodbc.connect('DRIVER={SQL Server};PORT=1433;SERVER=monarch.cjgga6i4mae6.us-east-2.rds.amazonaws.com;UID=admin;PWD=Admin1!Aws;')
+        cur = conn.cursor()
+        cur.execute("""SELECT now()""")
+        query_results = cur.fetchall()
+        print(query_results)
+    except Exception as e:
+        print("Database connection failed due to {}".format(e))   

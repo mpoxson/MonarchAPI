@@ -9,6 +9,9 @@
 - pip install azure-identity
 - pip install pandas
 
+- pip install psycopg2
+- pip intall boto3
+
 uvicorn main:app --reload
 
 # To Use:
@@ -37,6 +40,7 @@ https://stackoverflow.com/questions/58696716/how-to-export-databases-with-comman
 https://learn.microsoft.com/en-us/python/api/azure-mgmt-sql/azure.mgmt.sql.operations.databasesoperations?view=azure-python
 
 https://github.com/MicrosoftDocs/sql-docs/issues/9622
+https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Connecting.Python.html
 
 # References used
 
@@ -44,3 +48,5 @@ https://github.com/MicrosoftDocs/sql-docs/issues/9622
 - Convert to csv: https://stackoverflow.com/questions/6081008/dump-a-numpy-array-into-a-csv-file
 - list tables: https://dataedo.com/kb/query/azure-sql/list-of-tables-in-the-database
 - list table info: https://www.sisense.com/blog/sql-cheat-sheet-retrieving-column-description-sql-server/
+
+- Connect to server aws: https://stackoverflow.com/questions/58987218/cant-connect-to-sql-server-on-aws-rds-via-python
