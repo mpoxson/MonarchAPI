@@ -9,9 +9,6 @@
 - pip install azure-identity
 - pip install pandas
 
-- pip install psycopg2
-- pip intall boto3
-
 uvicorn main:app --reload
 
 # To Use:
@@ -19,6 +16,8 @@ uvicorn main:app --reload
 - Make yourself admin of server using entra ID
 - Allow your ip to access the database through the internet
 - make sure server is running (might have to request once or twice before the server starts itself up)
+
+- make sure your securtiy group allows public connections for aws
 
 # How to see api endpoints and use them
 
