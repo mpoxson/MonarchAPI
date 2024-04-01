@@ -118,6 +118,8 @@ def get_tables(port: str, server: str, username: str, password: str):
     try:
         conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
         cur = conn.cursor()
+        #cur.execute("""select schema_name(t.schema_id) as schema_name, t.name as table_name from sys.tables t order by schema_name, table_name;""")
+        #cur.execute("""SELECT schema_name FROM information_schema.schemata""")
         cur.execute("""select schema_name(t.schema_id) as schema_name, t.name as table_name from sys.tables t order by schema_name, table_name;""")
         query_results = cur.fetchall()
         column = []
