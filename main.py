@@ -1,5 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
+import os
 import mysql.connector
+import pandas as pd
+from io import StringIO
 
 app = FastAPI()
 
@@ -15,6 +18,33 @@ config = {
     'port': 3306,
 }
 
+@app.post("/upload-csv/")
+async def upload_csv(file: UploadFile = File(...)):
+    if file.filename.endswith('.csv'):
+        contents = await file.read()
+
+        # Define the directory path where you want to save the file
+        directory_path = "./uploaded_files"
+
+        # Check if the directory exists, and create it if it doesn't
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path)
+        
+        # Define the full file path
+        file_path = f"{directory_path}/{file.filename}"
+        
+        # Write the contents to a new file
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        
+        # Optionally, you can now read the file into a pandas DataFrame
+        # This is optional and depends on your further processing needs
+        df = pd.read_csv(StringIO(contents.decode('utf-8')))
+        
+        return {"message": "CSV processed and saved successfully"}
+    else:
+        return {"error": "Please upload a CSV file."}
+    
 #Need parameters for database name, server
 AZURE_SQL_CONNECTIONSTRING=''
 
