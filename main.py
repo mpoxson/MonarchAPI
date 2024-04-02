@@ -113,14 +113,14 @@ def get_conn(AZURE_SQL_CONNECTIONSTRING : str):
 ################################################################################################
 
 @app.get("/aws/tables")
-def get_tables(port: str, server: str, username: str, password: str):
+def get_tables(port: str, server: str, username: str, password: str, database_name: str):
     #DRIVER={ODBC Driver 18 for SQL Server};PORT=1433;SERVER=monarch.cjgga6i4mae6.us-east-2.rds.amazonaws.com;UID=;PWD=;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30
     try:
         conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
         cur = conn.cursor()
-        #cur.execute("""select schema_name(t.schema_id) as schema_name, t.name as table_name from sys.tables t order by schema_name, table_name;""")
-        #cur.execute("""SELECT schema_name FROM information_schema.schemata""")
-        cur.execute("""select schema_name(t.schema_id) as schema_name, t.name as table_name from sys.tables t order by schema_name, table_name;""")
+        cur.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
+            FROM %s.INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE = 'BASE TABLE'""" % (database_name))
         query_results = cur.fetchall()
         column = []
         for tupler in cur.description:
@@ -137,12 +137,14 @@ def get_tables(port: str, server: str, username: str, password: str):
         print("Database connection failed due to {}".format(e))   
 
 @app.get("/aws/data")
-def get_tables(port: str, server: str, username: str, password: str):
+def get_tables(port: str, server: str, username: str, password: str, database_name: str):
     output = ""
     
     conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
     cur = conn.cursor()
-    cur.execute("select schema_name(t.schema_id) as schema_name, t.name as table_name from sys.tables t  order by schema_name, table_name;")
+    cur.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
+            FROM %s.INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE = 'BASE TABLE'""" % (database_name))
     results = (cur.fetchall())
     for table in results:
         if table != "table_name":
@@ -150,8 +152,8 @@ def get_tables(port: str, server: str, username: str, password: str):
             table_schema = table[0]
             table_name = table[1]
             #select everything from each table, make into csv
-            print(f"select * from {table_schema}.{table_name};")             
-            cur.execute(f"select * from {table_schema}.{table_name};")
+            print(f"select * from {database_name}.{table_schema}.{table_name};")             
+            cur.execute(f"select * from {database_name}.{table_schema}.{table_name};")
             table_result = (cur.fetchall())
 
             column = []
@@ -168,11 +170,13 @@ def get_tables(port: str, server: str, username: str, password: str):
 
 
 @app.get("/aws/tables/columns")
-def get_tables(port: str, server: str, username: str, password: str):
+def get_tables(port: str, server: str, username: str, password: str, database_name: str):
 
     conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
     cur = conn.cursor()
-    cur.execute("SELECT TAB.name AS TableName, TAB.object_id AS ObjectID, COL.name AS ColumnName, TYP.name AS DataTypeName, TYP.max_length AS MaxLength From sys.columns COL INNER JOIN sys.tables TAB On COL.object_id = TAB.object_id INNER JOIN sys.types TYP ON TYP.user_type_id = COL.user_type_id;")
+    cur.execute("""SELECT TAB.name AS TableName, TAB.object_id AS ObjectID, COL.name AS ColumnName, TYP.name AS DataTypeName, TYP.max_length AS MaxLength 
+                From %s.sys.columns COL INNER JOIN %s.sys.tables TAB On COL.object_id = TAB.object_id 
+                INNER JOIN %s.sys.types TYP ON TYP.user_type_id = COL.user_type_id;""" % (database_name, database_name, database_name))
 
     column = []
     results = (cur.fetchall())
@@ -195,11 +199,15 @@ def create_csv(filename: str, data):
 
 #SELECT schema_name FROM information_schema.schemata;
 # ALL SCHEMA TABLES
+
+#SELECT * FROM master.sys.databases
+#All databases on server
         
 #ToDo: List of query strings
 # Change name of functions
 # csv for aws
-# parameterize for aws
+
+#output errors
         
 # Create front end that is pretty
 # Create targets for integrating
