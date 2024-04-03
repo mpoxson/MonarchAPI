@@ -18,7 +18,7 @@ config = {
     'port': 3306,
 }
 
-@app.post("/upload-csv/")
+@app.post("/upload-csv/") 
 async def upload_csv(file: UploadFile = File(...)):
     if file.filename.endswith('.csv'):
         contents = await file.read()
