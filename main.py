@@ -31,67 +31,47 @@ database_17 = 'sample-db'
 username_17 = 'admin123'
 password_17 = 'admin!123'
 connection_string_17 = f"DRIVER={driver_17};SERVER={server_17};DATABASE={database_17};UID={username_17};PWD={password_17}"
-
-
-@app.post("/upload-csv/")
-async def upload_csv(file: UploadFile = File(...)):
+    
+@app.post("/azure/import")
+async def import_iris(server_name: str, database_name: str, file: UploadFile = File(...)):
     if file.filename.endswith('.csv'):
-        contents = await file.read()
+        try: 
+            file_name = file.filename
+            table_name = os.path.splitext(file_name)[0]
 
-        # Define the directory path where you want to save the file
-        directory_path = "./uploaded_files"
+            contents = await file.read()
+            df = pd.read_csv(StringIO(contents.decode('utf-8')))
+            df = pd.read_csv(file_name)
 
-        # Check if the directory exists, and create it if it doesn't
-        if not os.path.exists(directory_path):
-            os.makedirs(directory_path)
-        
-        # Define the full file path
-        file_path = f"{directory_path}/{file.filename}"
-        
-        # Write the contents to a new file
-        with open(file_path, "wb") as f:
-            f.write(contents)
-        
-        # Optionally, you can now read the file into a pandas DataFrame
-        # This is optional and depends on your further processing needs
-        df = pd.read_csv(StringIO(contents.decode('utf-8')))
-        
-        return {"message": "CSV processed and saved successfully"}
+            #conn = pyodbc.connect(connection_string_17)
+            AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
+            with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
+                cursor = conn.cursor()
+
+                # Create table
+                create_table_query = f"CREATE TABLE {table_name} ("
+                for column_name in df.columns:
+                    column_name_cleaned = column_name.replace('.', '_')  # Replace dots with underscores
+                    create_table_query += f"{column_name_cleaned} VARCHAR(255), "
+                create_table_query = create_table_query[:-2] + ");"
+                cursor.execute(create_table_query)
+
+                # Insert data
+                for index, row in df.iterrows():
+                    placeholders = ",".join(["?"] * len(row))
+                    columns = ",".join([col.replace('.', '_') for col in row.index])  # Replace dots with underscores
+                    sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+                    cursor.execute(sql, tuple(row))
+                conn.commit()
+
+                conn.close()
+
+            return {"message": "Data imported successfully."}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
     else:
         return {"error": "Please upload a CSV file."}
-    
-@app.get("/import-iris")
-def import_iris():
-    try:
-        file_name = 'iris.csv'
-        table_name = os.path.splitext(file_name)[0]
-
-        df = pd.read_csv(file_name)
-
-        conn = pyodbc.connect(connection_string_17)
-        cursor = conn.cursor()
-
-        # Create table
-        create_table_query = f"CREATE TABLE {table_name} ("
-        for column_name in df.columns:
-            column_name_cleaned = column_name.replace('.', '_')  # Replace dots with underscores
-            create_table_query += f"{column_name_cleaned} VARCHAR(255), "
-        create_table_query = create_table_query[:-2] + ");"
-        cursor.execute(create_table_query)
-
-        # Insert data
-        for index, row in df.iterrows():
-            placeholders = ",".join(["?"] * len(row))
-            columns = ",".join([col.replace('.', '_') for col in row.index])  # Replace dots with underscores
-            sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-            cursor.execute(sql, tuple(row))
-        conn.commit()
-
-        conn.close()
-
-        return {"message": "Data imported successfully."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+   
     
 #Need parameters for database name, server
 AZURE_SQL_CONNECTIONSTRING=''
@@ -110,9 +90,8 @@ def get_tables(server_name: str, database_name: str):
         for tupler in cursor.description:
             #get names of columns (first value in tuple)
             column.append(tupler[0])
-            
-        results.insert(0, column)
-        create_csv("table_info", results)
+
+        create_csv("table_info", results, column)
 
         #find file path and dynamically change string
         output = "File has been saved to Downloads "
@@ -133,11 +112,9 @@ def get_tables(server_name: str, database_name: str):
         results = (cursor.fetchall())
         for table in results:
             if table != "table_name":
-                print(type(table))
                 table_schema = table[0]
                 table_name = table[1]
-                #select everything from each table, make into csv
-                print(f"select * from {table_schema}.{table_name};")             
+                #select everything from each table, make into csv            
                 cursor.execute(f"select * from {table_schema}.{table_name};")
                 table_result = (cursor.fetchall())
 
@@ -146,9 +123,7 @@ def get_tables(server_name: str, database_name: str):
                     #get names of columns (first value in tuple)
                     column.append(tupler[0])
 
-                table_result.insert(0, column)
-
-                create_csv(f"{table_schema}_{table_name}", table_result)
+                create_csv(f"{table_schema}_{table_name}", table_result, column)
             
         output = "File has been saved to Downloads "
 
@@ -170,9 +145,8 @@ def get_tables(server_name: str, database_name: str):
         for tupler in cursor.description:
             #get names of columns (first value in tuple)
             column.append(tupler[0])
-            
-        results.insert(0, column)
-        create_csv("column_info", results)
+
+        create_csv("column_info", results, column)
 
         #find file path and dynamically change string
         output = "File has been saved to Downloads "
@@ -205,9 +179,8 @@ def get_tables(port: str, server: str, username: str, password: str, database_na
         for tupler in cur.description:
             #get names of columns (first value in tuple)
             column.append(tupler[0])
-            
-        query_results.insert(0, column)
-        create_csv("table_info", query_results)
+
+        create_csv("table_info", query_results, column)
 
         #find file path and dynamically change string
         output = "File has been saved to Downloads "
@@ -240,9 +213,7 @@ def get_tables(port: str, server: str, username: str, password: str, database_na
                 #get names of columns (first value in tuple)
                 column.append(tupler[0])
 
-            table_result.insert(0, column)
-
-            create_csv(f"{table_schema}_{table_name}", table_result)
+            create_csv(f"{table_schema}_{table_name}", table_result, column)
             
     output = "File has been saved to Downloads "
     return output
@@ -263,8 +234,7 @@ def get_tables(port: str, server: str, username: str, password: str, database_na
         #get names of columns (first value in tuple)
         column.append(tupler[0])
             
-    results.insert(0, column)
-    create_csv("column_info", results)
+    create_csv("column_info", results, column)
 
     #find file path and dynamically change string
     output = "File has been saved to Downloads "
@@ -272,9 +242,52 @@ def get_tables(port: str, server: str, username: str, password: str, database_na
 
     return output
 
-def create_csv(filename: str, data):
-        df = pd.DataFrame(data)
-        df.to_csv(f'{filename}.csv', index=False)
+@app.post("/aws/import")
+async def import_iris(port: str, server: str, username: str, password: str, database_name: str, file: UploadFile = File(...)):
+    if file.filename.endswith('.csv'):
+        try: 
+            file_name = file.filename
+            table_name = os.path.splitext(file_name)[0]
+
+            contents = await file.read()
+            df = pd.read_csv(StringIO(contents.decode('utf-8')))
+            df = pd.read_csv(file_name)
+
+            conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
+            cursor = conn.cursor()
+
+            # Create table
+            create_table_query = f"CREATE TABLE {table_name} ("
+            for column_name in df.columns:
+                column_name_cleaned = column_name.replace('.', '_')  # Replace dots with underscores
+                create_table_query += f"{column_name_cleaned} VARCHAR(255), "
+            create_table_query = create_table_query[:-2] + ");"
+            cursor.execute(create_table_query)
+
+            # Insert data
+            for index, row in df.iterrows():
+                placeholders = ",".join(["?"] * len(row))
+                columns = ",".join([col.replace('.', '_') for col in row.index])  # Replace dots with underscores
+                sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+                cursor.execute(sql, tuple(row))
+            conn.commit()
+
+            conn.close()
+
+            return {"message": "Data imported successfully."}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    else:
+        return {"error": "Please upload a CSV file."}
+
+def create_csv(filename: str, data, column):
+    with open(f'{filename}.csv', 'w', encoding="utf-8", newline='') as f_handle:
+        writer = csv.writer(f_handle)
+        header = column
+        writer.writerow(header)
+        for row in data:
+            writer.writerow(row)
+
 
 #SELECT schema_name FROM information_schema.schemata;
 # ALL SCHEMA TABLES
@@ -282,11 +295,12 @@ def create_csv(filename: str, data):
 #SELECT * FROM master.sys.databases
 #All databases on server
         
-#ToDo: List of query strings
+#ToDo: 
+# List of query strings
 # Change name of functions
-# csv for aws
-
-#output errors
+# output errors (try catch)
+# api route that connects directly between the two without a local copy
+# csv saves better (folder of - database/schema/...)
         
 # Create front end that is pretty
-# Create targets for integrating
+# Create targets for integrating (single table targets)

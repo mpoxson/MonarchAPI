@@ -9,6 +9,7 @@
 - pip install azure-identity
 - pip install pandas
 - pip install mysql-connector
+- pip install python-multipart
 
 uvicorn main:app --reload
 
@@ -50,3 +51,7 @@ https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Co
 - list table info: https://www.sisense.com/blog/sql-cheat-sheet-retrieving-column-description-sql-server/
 
 - Connect to server aws: https://stackoverflow.com/questions/58987218/cant-connect-to-sql-server-on-aws-rds-via-python
+
+# Note:
+
+- Must have database/schema already created on upload (we cannot create a database in fast api)
