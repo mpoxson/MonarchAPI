@@ -1,13 +1,15 @@
+from fastapi import FastAPI, File, UploadFile, HTTPException
+import os
+import mysql.connector
+import pandas as pd
+from io import StringIO
 import pyodbc, struct
 from azure import identity
-
-from fastapi import FastAPI
-import pandas as pd
-
 import psycopg2
 import sys
 import boto3
-import os
+import csv
+
 
 app = FastAPI()
 
@@ -15,6 +17,82 @@ app = FastAPI()
 async def root():
     return {"message": "Hello World"}
 
+config = {
+    'user': 'admin',
+    'password': 'Cupcake0923&',
+    'host': 'monarchapi1.c3amcyc0kkom.us-east-2.rds.amazonaws.com',
+    'database': 'monarchapi1',
+    'port': 3306,
+}
+
+driver_17 = '{ODBC Driver 17 for SQL Server}'
+server_17 = 'server-sampledb.database.windows.net'
+database_17 = 'sample-db'
+username_17 = 'admin123'
+password_17 = 'admin!123'
+connection_string_17 = f"DRIVER={driver_17};SERVER={server_17};DATABASE={database_17};UID={username_17};PWD={password_17}"
+
+
+@app.post("/upload-csv/")
+async def upload_csv(file: UploadFile = File(...)):
+    if file.filename.endswith('.csv'):
+        contents = await file.read()
+
+        # Define the directory path where you want to save the file
+        directory_path = "./uploaded_files"
+
+        # Check if the directory exists, and create it if it doesn't
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path)
+        
+        # Define the full file path
+        file_path = f"{directory_path}/{file.filename}"
+        
+        # Write the contents to a new file
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        
+        # Optionally, you can now read the file into a pandas DataFrame
+        # This is optional and depends on your further processing needs
+        df = pd.read_csv(StringIO(contents.decode('utf-8')))
+        
+        return {"message": "CSV processed and saved successfully"}
+    else:
+        return {"error": "Please upload a CSV file."}
+    
+@app.get("/import-iris")
+def import_iris():
+    try:
+        file_name = 'iris.csv'
+        table_name = os.path.splitext(file_name)[0]
+
+        df = pd.read_csv(file_name)
+
+        conn = pyodbc.connect(connection_string_17)
+        cursor = conn.cursor()
+
+        # Create table
+        create_table_query = f"CREATE TABLE {table_name} ("
+        for column_name in df.columns:
+            column_name_cleaned = column_name.replace('.', '_')  # Replace dots with underscores
+            create_table_query += f"{column_name_cleaned} VARCHAR(255), "
+        create_table_query = create_table_query[:-2] + ");"
+        cursor.execute(create_table_query)
+
+        # Insert data
+        for index, row in df.iterrows():
+            placeholders = ",".join(["?"] * len(row))
+            columns = ",".join([col.replace('.', '_') for col in row.index])  # Replace dots with underscores
+            sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+            cursor.execute(sql, tuple(row))
+        conn.commit()
+
+        conn.close()
+
+        return {"message": "Data imported successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
 #Need parameters for database name, server
 AZURE_SQL_CONNECTIONSTRING=''
 
@@ -41,6 +119,7 @@ def get_tables(server_name: str, database_name: str):
 
 
     return output
+
 
 @app.get("/azure/data/{server_name}/{database_name}")
 def get_tables(server_name: str, database_name: str):
