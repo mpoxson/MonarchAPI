@@ -256,7 +256,7 @@ async def import_iris(port: str, server: str, username: str, password: str, data
             cursor = conn.cursor()
 
             # Create table
-            create_table_query = f"CREATE TABLE {table_name} ("
+            create_table_query = f"CREATE TABLE {database_name}.dbo.{table_name} ("
             for column_name in df.columns:
                 column_name_cleaned = column_name.replace('.', '_')  # Replace dots with underscores
                 create_table_query += f"{column_name_cleaned} VARCHAR(255), "
