@@ -8,6 +8,7 @@
 - pip install pydantic
 - pip install azure-identity
 - pip install pandas
+- pip install mysql-connector
 
 uvicorn main:app --reload
 
