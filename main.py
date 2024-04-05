@@ -91,10 +91,10 @@ def get_tables(server_name: str, database_name: str):
             #get names of columns (first value in tuple)
             column.append(tupler[0])
 
-        create_csv("table_info", results, column)
+        
 
         #find file path and dynamically change string
-        output = "File has been saved to Downloads "
+        output = f"File has been saved to: {create_csv(database_name, "table_info", results, column)}" 
 
 
     return output
@@ -123,9 +123,9 @@ def get_tables(server_name: str, database_name: str):
                     #get names of columns (first value in tuple)
                     column.append(tupler[0])
 
-                create_csv(f"{table_schema}_{table_name}", table_result, column)
+                create_csv(f"{database_name}/{table_schema}", table_name, table_result, column)
             
-        output = "File has been saved to Downloads "
+        output = f"Files have been saved to: ./{database_name}"
 
 
     return output
@@ -146,10 +146,8 @@ def get_tables(server_name: str, database_name: str):
             #get names of columns (first value in tuple)
             column.append(tupler[0])
 
-        create_csv("column_info", results, column)
-
         #find file path and dynamically change string
-        output = "File has been saved to Downloads "
+        output = f"File has been saved to: {create_csv(database_name, "column_info", results, column)}" 
 
 
     return output
@@ -180,11 +178,10 @@ def get_tables(port: str, server: str, username: str, password: str, database_na
             #get names of columns (first value in tuple)
             column.append(tupler[0])
 
-        create_csv("table_info", query_results, column)
-
         #find file path and dynamically change string
-        output = "File has been saved to Downloads "
-        print(output)
+        output = f"File has been saved to: {create_csv(database_name, "table_info", query_results, column)}" 
+        return output
+    
     except Exception as e:
         print("Database connection failed due to {}".format(e))   
 
@@ -213,9 +210,9 @@ def get_tables(port: str, server: str, username: str, password: str, database_na
                 #get names of columns (first value in tuple)
                 column.append(tupler[0])
 
-            create_csv(f"{table_schema}_{table_name}", table_result, column)
+            create_csv(f"{database_name}/{table_schema}", table_name, table_result, column)
             
-    output = "File has been saved to Downloads "
+    output = f"Files have been saved to: ./{database_name}"
     return output
 
 
@@ -234,12 +231,8 @@ def get_tables(port: str, server: str, username: str, password: str, database_na
         #get names of columns (first value in tuple)
         column.append(tupler[0])
             
-    create_csv("column_info", results, column)
-
     #find file path and dynamically change string
-    output = "File has been saved to Downloads "
-
-
+    output = f"File has been saved to: {create_csv(database_name, "column_info", results, column)}" 
     return output
 
 @app.post("/aws/import")
@@ -280,14 +273,25 @@ async def import_iris(port: str, server: str, username: str, password: str, data
     else:
         return {"error": "Please upload a CSV file."}
 
-def create_csv(filename: str, data, column):
-    with open(f'{filename}.csv', 'w', encoding="utf-8", newline='') as f_handle:
+def create_csv(filepath: str, filename: str, data, column):
+    # Define the directory path where you want to save the file
+    directory_path = f"./{filepath}"
+
+    # Check if the directory exists, and create it if it doesn't
+    if not os.path.exists(directory_path):
+        os.makedirs(directory_path)
+        
+    # Define the full file path
+    file_path = f"{directory_path}/{filename}.csv"
+
+    with open(file_path, 'w', encoding="utf-8", newline='') as f_handle:
         writer = csv.writer(f_handle)
         header = column
         writer.writerow(header)
         for row in data:
             writer.writerow(row)
 
+    return file_path
 
 #SELECT schema_name FROM information_schema.schemata;
 # ALL SCHEMA TABLES
@@ -296,11 +300,13 @@ def create_csv(filename: str, data, column):
 #All databases on server
         
 #ToDo: 
+# import using column info first
+# upload folder (multiple tables)
 # List of query strings
 # Change name of functions
 # output errors (try catch)
 # api route that connects directly between the two without a local copy
-# csv saves better (folder of - database/schema/...)
+
         
 # Create front end that is pretty
-# Create targets for integrating (single table targets)
+# Create targets for integrating (single table download, already have single table upload)
