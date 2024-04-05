@@ -83,7 +83,9 @@ def get_tables(server_name: str, database_name: str):
     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
     with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
         cursor = conn.cursor()
-        cursor.execute("select schema_name(t.schema_id) as schema_name, t.name as table_name from sys.tables t order by schema_name, table_name;")
+        cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
 
         
         results = (cursor.fetchall())
@@ -107,7 +109,9 @@ def get_tables(server_name: str, database_name: str):
     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
     with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
         cursor = conn.cursor()
-        cursor.execute("select schema_name(t.schema_id) as schema_name, t.name as table_name from sys.tables t  order by schema_name, table_name;")
+        cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
 
         results = (cursor.fetchall())
         for table in results:
@@ -138,7 +142,10 @@ def get_tables(server_name: str, database_name: str):
     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
     with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT TAB.name AS TableName, TAB.object_id AS ObjectID, COL.name AS ColumnName, TYP.name AS DataTypeName, TYP.max_length AS MaxLength From sys.columns COL INNER JOIN sys.tables TAB On COL.object_id = TAB.object_id INNER JOIN sys.types TYP ON TYP.user_type_id = COL.user_type_id;")
+        cursor.execute("""SELECT TAB.name AS TableName, TAB.object_id AS ObjectID, COL.name AS ColumnName, TYP.name AS DataTypeName, TYP.max_length AS MaxLength 
+                       From sys.columns COL INNER JOIN sys.tables TAB On COL.object_id = TAB.object_id 
+                       INNER JOIN sys.types TYP ON TYP.user_type_id = COL.user_type_id 
+                       WHERE TAB.name NOT LIKE 'BuildVersion' AND TAB.name NOT LIKE 'ErrorLog';""")
 
         
         results = (cursor.fetchall())
@@ -165,7 +172,7 @@ def get_conn(AZURE_SQL_CONNECTIONSTRING : str):
 
 @app.get("/aws/tables")
 def get_tables(port: str, server: str, username: str, password: str, database_name: str):
-    #DRIVER={ODBC Driver 18 for SQL Server};PORT=1433;SERVER=monarch.cjgga6i4mae6.us-east-2.rds.amazonaws.com;UID=;PWD=;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30
+    #PORT=1433;SERVER=monarch.cjgga6i4mae6.us-east-2.rds.amazonaws.com;UID=;PWD=;db=monarchdb
     try:
         conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
         cur = conn.cursor()
@@ -200,8 +207,7 @@ def get_tables(port: str, server: str, username: str, password: str, database_na
             print(type(table))
             table_schema = table[0]
             table_name = table[1]
-            #select everything from each table, make into csv
-            print(f"select * from {database_name}.{table_schema}.{table_name};")             
+            #select everything from each table, make into csv       
             cur.execute(f"select * from {database_name}.{table_schema}.{table_name};")
             table_result = (cur.fetchall())
 
