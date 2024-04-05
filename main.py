@@ -1,13 +1,14 @@
+from fastapi import FastAPI, File, UploadFile
+import os
+import mysql.connector
+import pandas as pd
+from io import StringIO
 import pyodbc, struct
 from azure import identity
-
-from fastapi import FastAPI
-import pandas as pd
-
 import psycopg2
 import sys
 import boto3
-import os
+
 
 app = FastAPI()
 
@@ -15,6 +16,41 @@ app = FastAPI()
 async def root():
     return {"message": "Hello World"}
 
+config = {
+    'user': 'admin',
+    'password': 'Cupcake0923&',
+    'host': 'monarchapi1.c3amcyc0kkom.us-east-2.rds.amazonaws.com',
+    'database': 'monarchapi1',
+    'port': 3306,
+}
+
+@app.post("/upload-csv/")
+async def upload_csv(file: UploadFile = File(...)):
+    if file.filename.endswith('.csv'):
+        contents = await file.read()
+
+        # Define the directory path where you want to save the file
+        directory_path = "./uploaded_files"
+
+        # Check if the directory exists, and create it if it doesn't
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path)
+        
+        # Define the full file path
+        file_path = f"{directory_path}/{file.filename}"
+        
+        # Write the contents to a new file
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        
+        # Optionally, you can now read the file into a pandas DataFrame
+        # This is optional and depends on your further processing needs
+        df = pd.read_csv(StringIO(contents.decode('utf-8')))
+        
+        return {"message": "CSV processed and saved successfully"}
+    else:
+        return {"error": "Please upload a CSV file."}
+    
 #Need parameters for database name, server
 AZURE_SQL_CONNECTIONSTRING=''
 
@@ -41,6 +77,7 @@ def get_tables(server_name: str, database_name: str):
 
 
     return output
+
 
 @app.get("/azure/data/{server_name}/{database_name}")
 def get_tables(server_name: str, database_name: str):
