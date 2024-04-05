@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException
 import os
 import mysql.connector
 import pandas as pd
@@ -8,6 +8,7 @@ from azure import identity
 import psycopg2
 import sys
 import boto3
+import csv
 
 
 app = FastAPI()
@@ -23,6 +24,14 @@ config = {
     'database': 'monarchapi1',
     'port': 3306,
 }
+
+driver_17 = '{ODBC Driver 17 for SQL Server}'
+server_17 = 'server-sampledb.database.windows.net'
+database_17 = 'sample-db'
+username_17 = 'admin123'
+password_17 = 'admin!123'
+connection_string_17 = f"DRIVER={driver_17};SERVER={server_17};DATABASE={database_17};UID={username_17};PWD={password_17}"
+
 
 @app.post("/upload-csv/")
 async def upload_csv(file: UploadFile = File(...)):
@@ -50,6 +59,39 @@ async def upload_csv(file: UploadFile = File(...)):
         return {"message": "CSV processed and saved successfully"}
     else:
         return {"error": "Please upload a CSV file."}
+    
+@app.get("/import-iris")
+def import_iris():
+    try:
+        file_name = 'iris.csv'
+        table_name = os.path.splitext(file_name)[0]
+
+        df = pd.read_csv(file_name)
+
+        conn = pyodbc.connect(connection_string_17)
+        cursor = conn.cursor()
+
+        # Create table
+        create_table_query = f"CREATE TABLE {table_name} ("
+        for column_name in df.columns:
+            column_name_cleaned = column_name.replace('.', '_')  # Replace dots with underscores
+            create_table_query += f"{column_name_cleaned} VARCHAR(255), "
+        create_table_query = create_table_query[:-2] + ");"
+        cursor.execute(create_table_query)
+
+        # Insert data
+        for index, row in df.iterrows():
+            placeholders = ",".join(["?"] * len(row))
+            columns = ",".join([col.replace('.', '_') for col in row.index])  # Replace dots with underscores
+            sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+            cursor.execute(sql, tuple(row))
+        conn.commit()
+
+        conn.close()
+
+        return {"message": "Data imported successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     
 #Need parameters for database name, server
 AZURE_SQL_CONNECTIONSTRING=''
