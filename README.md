@@ -52,7 +52,10 @@ https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Co
 
 - Connect to server aws: https://stackoverflow.com/questions/58987218/cant-connect-to-sql-server-on-aws-rds-via-python
 - Right split strings: https://stackoverflow.com/questions/3548673/how-can-i-replace-or-strip-an-extension-from-a-filename-in-python
+- Column info per table https://stackoverflow.com/questions/2418527/sql-server-query-to-get-the-list-of-columns-in-a-table-along-with-data-types-no
 
 # Note:
 
 - Must have database/schema already created on upload (we cannot create a database in fast api)
+- Upload doesn't have a foreign key or multiple primary keys in a constraint
+- Must have Python 3.10 or higher

@@ -112,6 +112,50 @@ async def import_iris(server_name: str, database_name: str, files: List[UploadFi
             else:
                 return {"error": "Please upload a CSV file."}
         return {"message": "Data imported successfully."}
+    
+@app.post("/azure/import/schema")
+async def import_iris(server_name: str, database_name: str, files: List[UploadFile] = File(...)):
+    AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
+    with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
+        cursor = conn.cursor()
+        for file in files:
+            if file.filename.endswith('.csv'):
+                try: 
+                    file_name = file.filename
+                    #table_name = os.path.splitext(file_name)[0]
+                    table_name = file_name.rsplit( ".", 1 )[ 0 ]
+
+                    contents = await file.read()
+                    
+                    df = pd.read_csv(StringIO(contents.decode('utf-8')))
+                    #df = pd.read_csv(file_name)
+
+                    #conn = pyodbc.connect(connection_string_17)
+
+                    # Create table
+                    create_table_query = f"CREATE TABLE dbo.{table_name} ("
+                    for index, row in df.iterrows():
+                        #column name (0)
+                        column_name_cleaned = tuple(row)[0].replace('.', '_')  # Replace dots with underscores
+                        # data type (1) 4 (max lenth) 5 (precision) 6 (scale)
+                        # null (2)
+                        # primary key (3)
+                        create_table_query += f"{column_name_cleaned} VARCHAR(255), "
+                    create_table_query = create_table_query[:-2] + ");"
+                    cursor.execute(create_table_query)
+
+                    # Insert data
+                    for index, row in df.iterrows():
+                        placeholders = ",".join(["?"] * len(row))
+                        columns = ",".join([col.replace('.', '_') for col in row.index])  # Replace dots with underscores
+                        sql = f"INSERT INTO dbo.{table_name} ({columns}) VALUES ({placeholders})"
+                        cursor.execute(sql, tuple(row))
+                    conn.commit()
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=str(e))
+            else:
+                return {"error": "Please upload a CSV file."}
+        return {"message": "Data imported successfully."}
    
     
 #Need parameters for database name, server
@@ -176,6 +220,44 @@ def get_tables(server_name: str, database_name: str):
     return output
 
 
+@app.get("/azure/schema/columns")
+def get_tables(server_name: str, database_name: str):
+    output = ""
+    AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
+    with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
+        
+        results = (cursor.fetchall())
+        for table in results:
+            table_schema = table[0]
+            table_name = table[1]
+
+            cursor.execute(f"""SELECT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
+                            c.max_length 'Max Length', c.precision , c.scale
+                            FROM sys.columns c
+                            INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+                            LEFT OUTER JOIN sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+                            LEFT OUTER JOIN sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+                            WHERE c.object_id = OBJECT_ID('{table_schema}.{table_name}')""")
+
+            column = []
+            results = (cursor.fetchall())
+            for tupler in cursor.description:
+                #get names of columns (first value in tuple)
+                column.append(tupler[0])
+
+            location = create_csv(f"{database_name}/{table_schema}", table_name, results, column)
+            #find file path and dynamically change string
+        output = f"File has been saved to: ./{database_name}" 
+
+
+    return output
+
+
 @app.get("/azure/tables/columns")
 def get_tables(server_name: str, database_name: str):
     output = ""
@@ -183,7 +265,7 @@ def get_tables(server_name: str, database_name: str):
     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
     with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
         cursor = conn.cursor()
-        cursor.execute("""SELECT TAB.name AS TableName, TAB.object_id AS ObjectID, COL.name AS ColumnName, TYP.name AS DataTypeName, TYP.max_length AS MaxLength 
+        cursor.execute("""SELECT TAB.name AS TableName, COL.name AS ColumnName, TYP.name AS DataTypeName, TYP.max_length AS MaxLength 
                        From sys.columns COL INNER JOIN sys.tables TAB On COL.object_id = TAB.object_id 
                        INNER JOIN sys.types TYP ON TYP.user_type_id = COL.user_type_id 
                        WHERE TAB.name NOT LIKE 'BuildVersion' AND TAB.name NOT LIKE 'ErrorLog';""")
@@ -390,6 +472,92 @@ def create_csv(filepath: str, filename: str, data, column):
             writer.writerow(row)
 
     return file_path
+
+def data_typer(type: str, length, precision, scale):
+    data_type = ""
+    length = int(length)
+    match type.lower():
+        case "char":
+            data_type= f"CHAR({divide_two(length)})"
+        case "varchar":
+            data_type= f"VARCHAR({divide_two(length)})"
+        case "text":
+            data_type= "TEXT"
+        case "nchar":
+            data_type= "NCHAR"
+        case "nvarchar":
+            data_type= f"NVARCHAR{maxxing(length)}"
+        case "ntext":
+            data_type= "NTEXT"
+        case "binary":
+            data_type= f"BINARY({length})"
+        case "varbinary":
+            data_type= f"VARBINARY{maxxing(length)}"
+        case "image":
+            data_type= "IMAGE"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case "char":
+            data_type= "CHAR"
+        case _:
+            data_type= "CHAR"
+
+    return data_type
+
+def divide_two(len: int):
+    length = len/2
+    if (length>8000):
+        length = 'max'
+    return f"{length}"
+
+def maxxing(len: int):
+    if (len/2 > 4000):
+        return '(max)'
+    return ""
 
 #SELECT schema_name FROM information_schema.schemata;
 # ALL SCHEMA TABLES
