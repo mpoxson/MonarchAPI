@@ -32,9 +32,11 @@ database_17 = 'sample-db'
 username_17 = 'admin123'
 password_17 = 'admin!123'
 connection_string_17 = f"DRIVER={driver_17};SERVER={server_17};DATABASE={database_17};UID={username_17};PWD={password_17}"
+
+##############################################################################################################################################
     
 @app.post("/azure/import/single")
-async def import_iris(server_name: str, database_name: str, file: UploadFile = File(...)):
+async def azure_single_table(server_name: str, database_name: str, file: UploadFile = File(...)):
     if file.filename.endswith('.csv'):
         try: 
             file_name = file.filename
@@ -74,7 +76,7 @@ async def import_iris(server_name: str, database_name: str, file: UploadFile = F
         return {"error": "Please upload a CSV file."}
    
 @app.post("/azure/import/multiple")
-async def import_iris(server_name: str, database_name: str, files: List[UploadFile] = File(...)):
+async def azure_mult_table(server_name: str, database_name: str, files: List[UploadFile] = File(...)):
     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
     with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
         cursor = conn.cursor()
@@ -114,7 +116,7 @@ async def import_iris(server_name: str, database_name: str, files: List[UploadFi
         return {"message": "Data imported successfully."}
     
 @app.post("/azure/import/schema")
-async def import_iris(server_name: str, database_name: str, files: List[UploadFile] = File(...)):
+async def azure_import_schema(server_name: str, database_name: str, files: List[UploadFile] = File(...)):
     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
     with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
         cursor = conn.cursor()
@@ -161,7 +163,7 @@ async def import_iris(server_name: str, database_name: str, files: List[UploadFi
 AZURE_SQL_CONNECTIONSTRING=''
 
 @app.get("/azure/tables/{server_name}/{database_name}")
-def get_tables(server_name: str, database_name: str):
+def azure_get_tables(server_name: str, database_name: str):
     output = ""
     column = []
     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
@@ -187,7 +189,7 @@ def get_tables(server_name: str, database_name: str):
 
 
 @app.get("/azure/data/{server_name}/{database_name}")
-def get_tables(server_name: str, database_name: str):
+def azure_get_data(server_name: str, database_name: str):
     output = ""
     
     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
@@ -220,7 +222,7 @@ def get_tables(server_name: str, database_name: str):
 
 
 @app.get("/azure/schema/columns")
-def get_tables(server_name: str, database_name: str):
+def azure_get_columns(server_name: str, database_name: str):
     output = ""
     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
     with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
@@ -258,7 +260,7 @@ def get_tables(server_name: str, database_name: str):
 
 
 @app.get("/azure/tables/columns")
-def get_tables(server_name: str, database_name: str):
+def azure_get_columns(server_name: str, database_name: str):
     output = ""
     column = []
     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
@@ -294,7 +296,7 @@ def get_conn(AZURE_SQL_CONNECTIONSTRING : str):
 ################################################################################################
 
 @app.get("/aws/tables")
-def get_tables(port: str, server: str, username: str, password: str, database_name: str):
+def aws_get_tables(port: str, server: str, username: str, password: str, database_name: str):
     #PORT=1433;SERVER=monarch.cjgga6i4mae6.us-east-2.rds.amazonaws.com;UID=;PWD=;db=monarchdb
     try:
         conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
@@ -318,7 +320,7 @@ def get_tables(port: str, server: str, username: str, password: str, database_na
         print("Database connection failed due to {}".format(e))   
 
 @app.get("/aws/data")
-def get_tables(port: str, server: str, username: str, password: str, database_name: str):
+def aws_get_data(port: str, server: str, username: str, password: str, database_name: str):
     output = ""
     
     conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
@@ -348,7 +350,7 @@ def get_tables(port: str, server: str, username: str, password: str, database_na
 
 
 @app.get("/aws/tables/columns")
-def get_tables(port: str, server: str, username: str, password: str, database_name: str):
+def aws_get_columns(port: str, server: str, username: str, password: str, database_name: str):
 
     conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
     cur = conn.cursor()
@@ -369,7 +371,7 @@ def get_tables(port: str, server: str, username: str, password: str, database_na
     return output
 
 @app.post("/aws/import/single")
-async def import_iris(port: str, server: str, username: str, password: str, database_name: str, file: UploadFile = File(...)):
+async def aws_single_table(port: str, server: str, username: str, password: str, database_name: str, file: UploadFile = File(...)):
     if file.filename.endswith('.csv'):
         try: 
             file_name = file.filename
@@ -409,7 +411,7 @@ async def import_iris(port: str, server: str, username: str, password: str, data
         return {"error": "Please upload a CSV file."}
     
 @app.post("/aws/import/double")
-async def import_iris(port: str, server: str, username: str, password: str, database_name: str, files: List[UploadFile] = File(...)):
+async def aws_mult_table(port: str, server: str, username: str, password: str, database_name: str, files: List[UploadFile] = File(...)):
     conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
     cursor = conn.cursor()
     
@@ -451,7 +453,7 @@ async def import_iris(port: str, server: str, username: str, password: str, data
     return {"message": "Data imported successfully."}
 
 @app.get("/azure/schema/columns")
-def get_tables(port: str, server: str, username: str, password: str, database_name: str):
+def aws_get_columns(port: str, server: str, username: str, password: str, database_name: str):
 
     conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
     cursor = conn.cursor()
@@ -487,7 +489,7 @@ def get_tables(port: str, server: str, username: str, password: str, database_na
     return output
 
 @app.post("/aws/import/schema")
-async def import_iris(port: str, server: str, username: str, password: str, database_name: str, files: List[UploadFile] = File(...)):
+async def aws_import_schema(port: str, server: str, username: str, password: str, database_name: str, files: List[UploadFile] = File(...)):
     conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
     cursor = conn.cursor()
     for file in files:
