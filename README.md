@@ -1,6 +1,6 @@
 # MonarchAPI
 
-- Download python
+- Download python (3.10 or higher)
 - Download ODBC Driver 18 for SQL Server
 - pip install fastapi
 - pip install uvicorn
@@ -17,31 +17,13 @@ uvicorn main:app --reload
 
 - Make yourself admin of server using entra ID
 - Allow your ip to access the database through the internet
-- make sure server is running (might have to request once or twice before the server starts itself up)
+- make sure server is running (might have to request twice or thrice before the server starts itself up)
 
 - make sure your securtiy group allows public connections for aws
 
 # How to see api endpoints and use them
 
 http://127.0.0.1:8000/docs
-
-# Potential References:
-
-- Connect to aws rds: https://stackoverflow.com/questions/62627058/how-to-connect-to-aws-rds-mysql-database-with-python
-- Import db: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/MySQL.Procedural.Importing.NonRDSRepl.html
-- export db: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/MySQL.Procedural.Exporting.NonRDSRepl.html
-- importing db (azure): https://learn.microsoft.com/en-us/azure/dms/tutorial-mysql-azure-mysql-offline-portal
-- exporting db (azure): https://learn.microsoft.com/en-us/azure/mysql/flexible-server/concepts-migrate-import-export
-
-https://www.youtube.com/watch?v=JVtGKA6OVvM
-https://www.youtube.com/watch?v=6joGkZMVX4o
-https://www.youtube.com/watch?v=NOT_pScEVFc
-
-https://stackoverflow.com/questions/58696716/how-to-export-databases-with-commands-azure-cli-on-python-script
-https://learn.microsoft.com/en-us/python/api/azure-mgmt-sql/azure.mgmt.sql.operations.databasesoperations?view=azure-python
-
-https://github.com/MicrosoftDocs/sql-docs/issues/9622
-https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Connecting.Python.html
 
 # References used
 
@@ -59,3 +41,16 @@ https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Co
 - Must have database/schema already created on upload (we cannot create a database in fast api)
 - Upload doesn't have a foreign key or multiple primary keys in a constraint
 - Must have Python 3.10 or higher
+- Upload doesn't have uniqueness (sorry)
+- Upload target must be empty
+- make sure your credentials have access to both dbs and can read/write/create
+- aws: will only grab from dbo schema
+- import will only import to dbo
+
+# Future:
+
+- implement schema creation (other than dbo)
+- implement more data scraping using sql - can grab multiple schemas, more table info, multiple databases
+- host in cloud
+- make more secure
+- integrate (combine) tables and deal with duplicates

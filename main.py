@@ -137,19 +137,18 @@ async def import_iris(server_name: str, database_name: str, files: List[UploadFi
                     for index, row in df.iterrows():
                         #column name (0)
                         column_name_cleaned = tuple(row)[0].replace('.', '_')  # Replace dots with underscores
-                        # data type (1) 4 (max lenth) 5 (precision) 6 (scale)
-                        # null (2)
+                        # 1 (data type) 4 (max lenth) 5 (precision) 6 (scale)
+                        data_type = data_typer(tuple(row)[1], tuple(row)[4], tuple(row)[5], tuple(row)[6])
+                        # null (2) 
+                        nullable = nulls(tuple(row)[2])
                         # primary key (3)
-                        create_table_query += f"{column_name_cleaned} VARCHAR(255), "
+                        pk = primary(tuple(row)[3])
+                        #put together
+                        create_table_query += f"{column_name_cleaned} {data_type}{nullable}{pk}, "
                     create_table_query = create_table_query[:-2] + ");"
                     cursor.execute(create_table_query)
 
-                    # Insert data
-                    for index, row in df.iterrows():
-                        placeholders = ",".join(["?"] * len(row))
-                        columns = ",".join([col.replace('.', '_') for col in row.index])  # Replace dots with underscores
-                        sql = f"INSERT INTO dbo.{table_name} ({columns}) VALUES ({placeholders})"
-                        cursor.execute(sql, tuple(row))
+                    print(create_table_query)
                     conn.commit()
                 except Exception as e:
                     raise HTTPException(status_code=500, detail=str(e))
@@ -477,6 +476,7 @@ def data_typer(type: str, length, precision, scale):
     data_type = ""
     length = int(length)
     match type.lower():
+        #Strings
         case "char":
             data_type= f"CHAR({divide_two(length)})"
         case "varchar":
@@ -495,56 +495,57 @@ def data_typer(type: str, length, precision, scale):
             data_type= f"VARBINARY{maxxing(length)}"
         case "image":
             data_type= "IMAGE"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
-        case "char":
-            data_type= "CHAR"
+        #numeric
+        case "bit":
+            data_type= "BIT"
+        case "tinyint":
+            data_type= "TINYINT"
+        case "smallint":
+            data_type= "SMALLINT"
+        case "int":
+            data_type= "INT"
+        case "bigint":
+            data_type= "BIGINT"
+        case "decimal":
+            data_type= f"DECIMAL({precision},{scale})"
+        case "numeric":
+            data_type= f"NUMERIC({precision},{scale})"
+        case "smallmoney":
+            data_type= "SMALLMONEY"
+        case "money":
+            data_type= "MONEY"
+        case "float":
+            data_type= f"FLOAT({length})"
+        case "real":
+            data_type= "REAL"
+        #date and time
+        case "datetime":
+            data_type= "DATETIME"
+        case "datetime2":
+            data_type= "DATETIME2"
+        case "smalldatetime":
+            data_type= "SMALLDATETIME"
+        case "date":
+            data_type= "DATE"
+        case "time":
+            data_type= "TIME"
+        case "datetimeoffset":
+            data_type= "DATETIMEOFFSET"
+        case "timestamp":
+            data_type= "TIMESTAMP"
+        #OTHER
+        case "sql_variant":
+            data_type= "sql_variant"
+        case "uniqueidentifier":
+            data_type= "uniqueidentifier"
+        case "xml":
+            data_type= "xml"
+        case "cursor":
+            data_type= "cursor"
+        case "table":
+            data_type= "table"
         case _:
-            data_type= "CHAR"
+            data_type= "VARCHAR(255)"
 
     return data_type
 
@@ -559,6 +560,18 @@ def maxxing(len: int):
         return '(max)'
     return ""
 
+def nulls(bool: str):
+    if (bool.lower() == "true"):
+        return " NOT NULL"
+    else:
+        return ""
+    
+def primary(pk: str):
+    if (pk.lower() == "true"):
+        return " PRIMARY KEY"
+    else:
+        return ""
+
 #SELECT schema_name FROM information_schema.schemata;
 # ALL SCHEMA TABLES
 
@@ -567,11 +580,10 @@ def maxxing(len: int):
         
 #ToDo: 
 # import using column info first
-# upload folder (multiple tables)
-# List of query strings
 # Change name of functions
 # output errors (try catch)
 # api route that connects directly between the two without a local copy
+# ask for aws schemas
 
         
 # Create front end that is pretty
