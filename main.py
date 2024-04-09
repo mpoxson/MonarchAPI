@@ -450,6 +450,84 @@ async def import_iris(port: str, server: str, username: str, password: str, data
             return {"error": "Please upload a CSV file."}
     return {"message": "Data imported successfully."}
 
+@app.get("/azure/schema/columns")
+def get_tables(port: str, server: str, username: str, password: str, database_name: str):
+
+    conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
+    cursor = conn.cursor()
+
+    cursor.execute(f"""SELECT TABLE_SCHEMA, TABLE_NAME
+        FROM {database_name}.INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
+    
+    results = (cursor.fetchall())
+    for table in results:
+        table_schema = table[0]
+        table_name = table[1]
+
+        cursor.execute(f"""SELECT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
+                        c.max_length 'Max Length', c.precision , c.scale
+                        FROM {database_name}.sys.columns c
+                        INNER JOIN {database_name}.sys.types t ON c.user_type_id = t.user_type_id
+                        LEFT OUTER JOIN {database_name}.sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+                        LEFT OUTER JOIN {database_name}.sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+                        WHERE c.object_id = OBJECT_ID('{database_name}.{table_schema}.{table_name}')""")
+
+        column = []
+        results = (cursor.fetchall())
+        for tupler in cursor.description:
+            #get names of columns (first value in tuple)
+            column.append(tupler[0])
+
+        location = create_csv(f"{database_name}/{table_schema}", table_name, results, column)
+        #find file path and dynamically change string
+    output = f"File has been saved to: ./{database_name}" 
+
+
+    return output
+
+@app.post("/aws/import/schema")
+async def import_iris(port: str, server: str, username: str, password: str, database_name: str, files: List[UploadFile] = File(...)):
+    conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
+    cursor = conn.cursor()
+    for file in files:
+        if file.filename.endswith('.csv'):
+            try: 
+                file_name = file.filename
+                #table_name = os.path.splitext(file_name)[0]
+                table_name = file_name.rsplit( ".", 1 )[ 0 ]
+
+                contents = await file.read()
+                
+                df = pd.read_csv(StringIO(contents.decode('utf-8')))
+                #df = pd.read_csv(file_name)
+
+                #conn = pyodbc.connect(connection_string_17)
+
+                # Create table
+                create_table_query = f"CREATE TABLE {database_name}.dbo.{table_name} ("
+                for index, row in df.iterrows():
+                    #column name (0)
+                    column_name_cleaned = tuple(row)[0].replace('.', '_')  # Replace dots with underscores
+                    # 1 (data type) 4 (max lenth) 5 (precision) 6 (scale)
+                    data_type = data_typer(tuple(row)[1], tuple(row)[4], tuple(row)[5], tuple(row)[6])
+                    # null (2) 
+                    nullable = nulls(tuple(row)[2])
+                    # primary key (3)
+                    pk = primary(tuple(row)[3])
+                    #put together
+                    create_table_query += f"{column_name_cleaned} {data_type}{nullable}{pk}, "
+                create_table_query = create_table_query[:-2] + ");"
+                cursor.execute(create_table_query)
+
+                print(create_table_query)
+                conn.commit()
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        else:
+            return {"error": "Please upload a CSV file."}
+    return {"message": "Data imported successfully."}
+
 ###############################################################################################################################
 
 def create_csv(filepath: str, filename: str, data, column):
