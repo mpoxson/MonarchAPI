@@ -54,3 +54,4 @@ http://127.0.0.1:8000/docs
 - host in cloud
 - make more secure
 - integrate (combine) tables and deal with duplicates
+- implement constraints
