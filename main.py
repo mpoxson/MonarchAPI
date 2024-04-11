@@ -103,7 +103,7 @@ async def azure_to_aws(azure_server_name: str, azure_database_name: str, port: s
                     columns = ",".join(column)  # Replace dots with underscores
                     sql = f"INSERT INTO {database_name}.dbo.{table_name} ({columns}) VALUES ({placeholders})"
                     cursor2.execute(sql, tuple(row))
-                    print(tuple(row))
+                    #print(tuple(row))
                 con2.commit()
     return "Migration Complete"
 
@@ -150,7 +150,7 @@ async def aws_to_azure(azure_server_name: str, azure_database_name: str, port: s
                     create_table_query += f"{column_name_cleaned} {data_type}{nullable}, "
             create_table_query = create_table_query[:-2] + ");"
             cursor.execute(create_table_query)
-            print(create_table_query)
+            #print(create_table_query)
             conn.commit()
 
         for table in results:
@@ -175,7 +175,7 @@ async def aws_to_azure(azure_server_name: str, azure_database_name: str, port: s
                     columns = ",".join(column)  # Replace dots with underscores
                     sql = f"INSERT INTO {azure_database_name}.dbo.{table_name} ({columns}) VALUES ({placeholders})"
                     cursor.execute(sql, tuple(row))
-                    print(tuple(row))
+                  #  print(tuple(row))
                 conn.commit()
     return "Migration Complete"
 
@@ -348,41 +348,9 @@ def azure_get_data(server_name: str, database_name: str):
             FROM INFORMATION_SCHEMA.TABLES
             WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
 
-        results = (cursor.fetchall())
-        for table in results:
-            if table != "table_name":
-                table_schema = table[0]
-                table_name = table[1]
-                #select everything from each table, make into csv            
-                cursor.execute(f"select * from {table_schema}.{table_name};")
-                table_result = (cursor.fetchall())
+        init_results = (cursor.fetchall())
 
-                column = []
-                for tupler in cursor.description:
-                    #get names of columns (first value in tuple)
-                    column.append(tupler[0])
-
-                create_csv(f"{database_name}/{table_schema}", table_name, table_result, column)
-            
-        output = f"Files have been saved to: ./{database_name}"
-
-
-    return output
-
-
-@app.get("/azure/schema/columns")
-def azure_get_columns(server_name: str, database_name: str):
-    output = ""
-    AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
-    with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
-        cursor = conn.cursor()
-
-        cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
-            FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
-        
-        results = (cursor.fetchall())
-        for table in results:
+        for table in init_results:
             table_schema = table[0]
             table_name = table[1]
 
@@ -400,12 +368,30 @@ def azure_get_columns(server_name: str, database_name: str):
                 #get names of columns (first value in tuple)
                 column.append(tupler[0])
 
-            location = create_csv(f"{database_name}/{table_schema}", table_name, results, column)
-            #find file path and dynamically change string
-        output = f"File has been saved to: ./{database_name}" 
+            create_csv(f"{database_name}/{table_schema}/schema", table_name, results, column)
+
+        for table in init_results:
+            if table != "table_name":
+                table_schema = table[0]
+                table_name = table[1]
+                #select everything from each table, make into csv            
+                cursor.execute(f"select * from {table_schema}.{table_name};")
+                table_result = (cursor.fetchall())
+
+                column = []
+                for tupler in cursor.description:
+                    #get names of columns (first value in tuple)
+                    column.append(tupler[0])
+
+                create_csv(f"{database_name}/{table_schema}/data", table_name, table_result, column)
+            
+        output = f"Files have been saved to: ./{database_name}"
 
 
     return output
+
+
+
 
 
 
@@ -454,10 +440,31 @@ def aws_get_data(port: str, server: str, username: str, password: str, database_
     cur.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
             FROM %s.INFORMATION_SCHEMA.TABLES
             WHERE TABLE_TYPE = 'BASE TABLE'""" % (database_name))
-    results = (cur.fetchall())
-    for table in results:
+    init_results = (cur.fetchall())
+
+    for table in init_results:
+        table_schema = table[0]
+        table_name = table[1]
+
+        cur.execute(f"""SELECT DISTINCT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
+                        c.max_length 'Max Length', c.precision , c.scale
+                        FROM {database_name}.sys.columns c
+                        INNER JOIN {database_name}.sys.types t ON c.user_type_id = t.user_type_id
+                        LEFT OUTER JOIN {database_name}.sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+                        LEFT OUTER JOIN {database_name}.sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+                        WHERE c.object_id = OBJECT_ID('{database_name}.{table_schema}.{table_name}')""")
+
+        column = []
+        results = (cur.fetchall())
+        for tupler in cur.description:
+            #get names of columns (first value in tuple)
+            column.append(tupler[0])
+
+        create_csv(f"{database_name}/{table_schema}/schema", table_name, results, column)
+
+    for table in init_results:
         if table != "table_name":
-            print(type(table))
+          #  print(type(table))
             table_schema = table[0]
             table_name = table[1]
             #select everything from each table, make into csv       
@@ -469,7 +476,7 @@ def aws_get_data(port: str, server: str, username: str, password: str, database_
                 #get names of columns (first value in tuple)
                 column.append(tupler[0])
 
-            create_csv(f"{database_name}/{table_schema}", table_name, table_result, column)
+            create_csv(f"{database_name}/{table_schema}/data", table_name, table_result, column)
             
     output = f"Files have been saved to: ./{database_name}"
     return output
@@ -519,41 +526,6 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
             return {"error": "Please upload a CSV file."}
     return {"message": "Data imported successfully."}
 
-@app.get("/aws/schema/columns")
-def aws_get_columns(port: str, server: str, username: str, password: str, database_name: str):
-
-    conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
-    cursor = conn.cursor()
-
-    cursor.execute(f"""SELECT TABLE_SCHEMA, TABLE_NAME
-        FROM {database_name}.INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
-    
-    results = (cursor.fetchall())
-    for table in results:
-        table_schema = table[0]
-        table_name = table[1]
-
-        cursor.execute(f"""SELECT DISTINCT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
-                        c.max_length 'Max Length', c.precision , c.scale
-                        FROM {database_name}.sys.columns c
-                        INNER JOIN {database_name}.sys.types t ON c.user_type_id = t.user_type_id
-                        LEFT OUTER JOIN {database_name}.sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
-                        LEFT OUTER JOIN {database_name}.sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
-                        WHERE c.object_id = OBJECT_ID('{database_name}.{table_schema}.{table_name}')""")
-
-        column = []
-        results = (cursor.fetchall())
-        for tupler in cursor.description:
-            #get names of columns (first value in tuple)
-            column.append(tupler[0])
-
-        location = create_csv(f"{database_name}/{table_schema}", table_name, results, column)
-        #find file path and dynamically change string
-    output = f"File has been saved to: ./{database_name}" 
-
-
-    return output
 
 @app.post("/aws/import/schema")
 async def aws_import_schema(port: str, server: str, username: str, password: str, database_name: str, files: List[UploadFile] = File(...)):
@@ -954,3 +926,75 @@ def primary(pk):
     
 #     except Exception as e:
 #         print("Database connection failed due to {}".format(e))  
+# @app.get("/aws/schema/columns")
+# def aws_get_columns(port: str, server: str, username: str, password: str, database_name: str):
+
+#     conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
+#     cursor = conn.cursor()
+
+#     cursor.execute(f"""SELECT TABLE_SCHEMA, TABLE_NAME
+#         FROM {database_name}.INFORMATION_SCHEMA.TABLES
+#         WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
+    
+#     results = (cursor.fetchall())
+#     for table in results:
+#         table_schema = table[0]
+#         table_name = table[1]
+
+#         cursor.execute(f"""SELECT DISTINCT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
+#                         c.max_length 'Max Length', c.precision , c.scale
+#                         FROM {database_name}.sys.columns c
+#                         INNER JOIN {database_name}.sys.types t ON c.user_type_id = t.user_type_id
+#                         LEFT OUTER JOIN {database_name}.sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+#                         LEFT OUTER JOIN {database_name}.sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+#                         WHERE c.object_id = OBJECT_ID('{database_name}.{table_schema}.{table_name}')""")
+
+#         column = []
+#         results = (cursor.fetchall())
+#         for tupler in cursor.description:
+#             #get names of columns (first value in tuple)
+#             column.append(tupler[0])
+
+#         location = create_csv(f"{database_name}/{table_schema}", table_name, results, column)
+#         #find file path and dynamically change string
+#     output = f"File has been saved to: ./{database_name}" 
+
+
+#     return output
+
+# @app.get("/azure/schema/columns")
+# def azure_get_columns(server_name: str, database_name: str):
+#     output = ""
+#     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
+#     with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
+#         cursor = conn.cursor()
+
+#         cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
+#             FROM INFORMATION_SCHEMA.TABLES
+#             WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
+        
+#         results = (cursor.fetchall())
+#         for table in results:
+#             table_schema = table[0]
+#             table_name = table[1]
+
+#             cursor.execute(f"""SELECT DISTINCT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
+#                             c.max_length 'Max Length', c.precision , c.scale
+#                             FROM sys.columns c
+#                             INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+#                             LEFT OUTER JOIN sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+#                             LEFT OUTER JOIN sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+#                             WHERE c.object_id = OBJECT_ID('{table_schema}.{table_name}')""")
+
+#             column = []
+#             results = (cursor.fetchall())
+#             for tupler in cursor.description:
+#                 #get names of columns (first value in tuple)
+#                 column.append(tupler[0])
+
+#             location = create_csv(f"{database_name}/{table_schema}", table_name, results, column)
+#             #find file path and dynamically change string
+#         output = f"File has been saved to: ./{database_name}" 
+
+
+#     return output
