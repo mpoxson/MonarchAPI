@@ -111,8 +111,16 @@ async def azure_to_aws(azure_server_name: str, azure_database_name: str, aws_por
                         cursor2.execute(sql, tuple(row))
                         #print(tuple(row))
         con2.commit()
+        cursor.close()
+        conn.close()
+        cursor2.close()
+        con2.close()
         return "Migration Complete"
     except Exception as e:
+        cursor.close()
+        conn.close()
+        cursor2.close()
+        con2.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/migrate/Aws_to_Azure")
@@ -193,8 +201,16 @@ async def aws_to_azure(azure_server_name: str, azure_database_name: str, aws_por
                         cursor.execute(sql, tuple(row))
                     #  print(tuple(row))
         conn.commit()
+        cursor2.close()
+        con2.close()
+        cursor2.close()
+        conn.close()
         return "Migration Complete"
     except Exception as e:
+        cursor2.close()
+        con2.close()
+        cursor2.close()
+        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 ###################################################################################################################################################################################
@@ -222,9 +238,12 @@ def azure_get_tables(server_name: str, database_name: str):
             #find file path and dynamically change string
             output = f"File has been saved to: {location}" 
 
-
+        cursor.close()
+        conn.close()
         return output
     except Exception as e:
+        cursor.close()
+        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
    
 @app.post("/azure/import/multiple")
@@ -263,12 +282,21 @@ async def azure_mult_table(server_name: str, database_name: str, new_schema_name
                             placeholders = ",".join(["?"] * len(row))
                             columns = ",".join([col.replace('.', '_') for col in row.index])  # Replace dots with underscores
                             sql = f"INSERT INTO {new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
-                            cursor.execute(sql, tuple(row))
+                            row_clean = []
+                            for el in tuple(row):
+                                row_clean.append(f"'{el}'")
+                            cursor.execute(sql, row_clean)
                 else:
+                    cursor.close()
+                    conn.close()
                     return {"error": "Please upload a CSV file."}
             conn.commit()
+            cursor.close()
+            conn.close()
             return {"message": "Data imported successfully."}
     except Exception as e:
+        cursor.close()
+        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.post("/azure/import/schema")
@@ -310,10 +338,16 @@ async def azure_import_schema(server_name: str, database_name: str, new_schema_n
                         create_table_query = create_table_query[:-2] + ");"
                         cursor.execute(create_table_query)
                 else:
+                    cursor.close()
+                    conn.close()
                     return {"error": "Please upload a CSV file."}
             conn.commit()
+            cursor.close()
+            conn.close()
             return {"message": "Data imported successfully."}
     except Exception as e:
+        cursor.close()
+        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
     
 
@@ -356,20 +390,19 @@ async def azure_schema_data(server_name: str, database_name: str, new_schema_nam
                             sql = f"INSERT INTO {new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
                             cursor.execute(sql, tuple(row))
                 else:
+                    cursor.close()
+                    conn.close()
                     return {"error": "Please upload a CSV file."}
             conn.commit()
+            cursor.close()
+            conn.close()
             return {"message": "Data imported successfully."}
     except Exception as e:
+        cursor.close()
+        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
-   
-    
-#Need parameters for database name, server
-AZURE_SQL_CONNECTIONSTRING=''
 
-
-
-
-@app.get("/azure/data/{server_name}/{database_name}")
+@app.get("/azure/data")
 def azure_get_data(server_name: str, database_name: str):
     
     try:
@@ -421,9 +454,12 @@ def azure_get_data(server_name: str, database_name: str):
                 
             output = f"Files have been saved to: ./{database_name}"
 
-
+        cursor.close()
+        conn.close()
         return output
     except Exception as e:
+        cursor.close()
+        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -458,10 +494,14 @@ def aws_get_tables(port: str, server: str, username: str, password: str, databas
 
         #find file path and dynamically change string
         output = f"File has been saved to: {location}" 
+        cur.close()
+        conn.close()
         return output
     
     except Exception as e:
-        print("Database connection failed due to {}".format(e))  
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/aws/data")
 def aws_get_data(port: str, server: str, username: str, password: str, database_name: str):
@@ -512,8 +552,12 @@ def aws_get_data(port: str, server: str, username: str, password: str, database_
                 create_csv(f"{database_name}/{table_schema}/data", table_name, table_result, column)
                 
         output = f"Files have been saved to: ./{database_name}"
+        cur.close()
+        conn.close()
         return output
     except Exception as e:
+        cur.close()
+        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -558,10 +602,16 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
                         
                         cursor.execute(sql, row_clean)
             else:
+                cursor.close()
+                conn.close()
                 return {"error": "Please upload a CSV file."}
         conn.commit()
+        cursor.close()
+        conn.close()
         return {"message": "Data imported successfully."}
     except Exception as e:
+        cursor.close()
+        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -603,10 +653,16 @@ async def aws_import_schema(port: str, server: str, username: str, password: str
                     create_table_query = create_table_query[:-2] + ");"
                     cursor.execute(create_table_query)
             else:
+                cursor.close()
+                conn.close()
                 return {"error": "Please upload a CSV file."}
         conn.commit()
+        cursor.close()
+        conn.close()
         return {"message": "Data imported successfully."}
     except Exception as e:
+        cursor.close()
+        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/aws/import/schema/data")
@@ -647,10 +703,16 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
                     sql = f"INSERT INTO {database_name}.{new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
                     cursor.execute(sql, tuple(row))
             else:
+                cursor.close()
+                conn.close()
                 return {"error": "Please upload a CSV file."}
         conn.commit()
+        cursor.close()
+        conn.close()
         return {"message": "Data imported successfully."}
     except Exception as e:
+        cursor.close()
+        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 ###############################################################################################################################
