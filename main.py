@@ -37,49 +37,6 @@ connection_string_17 = f"DRIVER={driver_17};SERVER={server_17};DATABASE={databas
 
 @app.post("/migrate/Azure_to_AWS")
 async def azure_to_aws(azure_server_name: str, azure_database_name: str, port: str, server: str, username: str, password: str, database_name: str):
-    # #vars
-    # schema_columns = []
-    # column = []
-    # head_sent = True
-    # #connect to azure
-    # AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (azure_server_name, azure_database_name)
-    # with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
-    #     #get azure data
-
-
-    #     cursor = conn.cursor()
-    #     cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
-    #         FROM INFORMATION_SCHEMA.TABLES
-    #         WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
-
-    #     results = (cursor.fetchall())
-    #     for table in results:
-    #         table_schema = table[0]
-    #         table_name = table[1]
-    #         #select everything from each table, make into csv            
-    #         cursor.execute(f"""SELECT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
-    #                     c.max_length 'Max Length', c.precision , c.scale
-    #                     FROM sys.columns c
-    #                     INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
-    #                     LEFT OUTER JOIN sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
-    #                     LEFT OUTER JOIN sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
-    #                     WHERE c.object_id = OBJECT_ID('{table_schema}.{table_name}')""")
-    #         table_result = (cursor.fetchall())               
-    #         if head_sent:
-    #             for tupler in cursor.description:
-    #                 #get names of columns (first value in tuple)
-    #                 column.append(tupler[0])
-    #             schema_columns.append({"Columns": column})
-    #             head_sent = False
-    #         schema_columns.append({f"{table_name}":table_result})
-
-    # print(schema_columns)
-
-    # #vars
-    # schema_columns = []
-    # column = []
-    # head_sent = True
-    # #connect to azure
     AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (azure_server_name, azure_database_name)
     with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
     #     #get azure data
@@ -148,10 +105,78 @@ async def azure_to_aws(azure_server_name: str, azure_database_name: str, port: s
                     cursor2.execute(sql, tuple(row))
                     print(tuple(row))
                 con2.commit()
+    return "Migration Complete"
 
+@app.post("/migrate/Aws_to_Azure")
+async def aws_to_azure(azure_server_name: str, azure_database_name: str, port: str, server: str, username: str, password: str, database_name: str):
+    AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (azure_server_name, azure_database_name)
+    with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
+        #get azure data
+        con2 = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
+        cursor = conn.cursor()
+
+        cursor2 = con2.cursor()
+        cursor2.execute(f"""SELECT TABLE_SCHEMA, TABLE_NAME
+            FROM {database_name}.INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
+
+        results = (cursor2.fetchall())
+        for table in results:
+            table_schema = table[0]
+            table_name = table[1]
+            column = []
+            #select everything from each table, make into csv            
+            cursor2.execute(f"""SELECT DISTINCT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
+                        c.max_length 'Max Length', c.precision , c.scale
+                        FROM {database_name}.sys.columns c
+                        INNER JOIN {database_name}.sys.types t ON c.user_type_id = t.user_type_id
+                        LEFT OUTER JOIN {database_name}.sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+                        LEFT OUTER JOIN {database_name}.sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+                        WHERE c.object_id = OBJECT_ID('{database_name}.{table_schema}.{table_name}')""")
+            table_result = (cursor2.fetchall())   
+            # Create table
+            create_table_query = f"CREATE TABLE {azure_database_name}.dbo.{table_name} ("
+            iterrows = iter(table_result)
+            for row in iterrows:
+                    #column name (0)
+                    column_name_cleaned = tuple(row)[0].replace('.', '_')  # Replace dots with underscores
+                    # 1 (data type) 4 (max lenth) 5 (precision) 6 (scale)
+                    data_type = data_typer(tuple(row)[1], tuple(row)[4], tuple(row)[5], tuple(row)[6])
+                    # null (2) 
+                    nullable = nulls(tuple(row)[2])
+                    # primary key (3)
+                    #pk = primary(tuple(row)[3])
+                    #put together
+                    create_table_query += f"{column_name_cleaned} {data_type}{nullable}, "
+            create_table_query = create_table_query[:-2] + ");"
+            cursor.execute(create_table_query)
+            print(create_table_query)
+            conn.commit()
+
+        for table in results:
+            if table != "table_name":
+                table_schema = table[0]
+                table_name = table[1]
+                #select everything from each table, make into csv            
+                cursor2.execute(f"select * from {database_name}.{table_schema}.{table_name};")
+                table_result = (cursor2.fetchall())
+
+                column = []
+                for tupler in cursor2.description:
+                    #get names of columns (first value in tuple)
+                    column.append(tupler[0])
+
+                for i in range(len(column)):
+                    column[i] = column[i].replace(".", "_")
                 
-
-    
+                # Insert data
+                for row in table_result:
+                    placeholders = ",".join(["?"] * len(row))
+                    columns = ",".join(column)  # Replace dots with underscores
+                    sql = f"INSERT INTO {azure_database_name}.dbo.{table_name} ({columns}) VALUES ({placeholders})"
+                    cursor.execute(sql, tuple(row))
+                    print(tuple(row))
+                conn.commit()
     return "Migration Complete"
    
 @app.post("/azure/import/multiple")
