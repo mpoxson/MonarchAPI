@@ -146,11 +146,12 @@ async def aws_to_azure(azure_server_name: str, azure_database_name: str, aws_por
                 table_result = (cursor2.fetchall())  
                 # Create Schema
                 if (table_schema not in schema_list):
-                    create_schema = f"CREATE SCHEMA {azure_database_name}.{table_schema};"
+                    cursor.execute(f"USE {azure_database_name};")
+                    create_schema = f"CREATE SCHEMA {table_schema};"
                     cursor.execute(create_schema)
                     schema_list.append(table_schema) 
                 # Create table
-                create_table_query = f"CREATE TABLE {azure_database_name}.dbo.{table_name} ("
+                create_table_query = f"CREATE TABLE {azure_database_name}.{table_schema}.{table_name} ("
                 iterrows = iter(table_result)
                 for row in iterrows:
                         #column name (0)
@@ -198,7 +199,7 @@ async def aws_to_azure(azure_server_name: str, azure_database_name: str, aws_por
 
 ###################################################################################################################################################################################
 
-@app.get("/azure/tables/{server_name}/{database_name}")
+@app.get("/azure/tables")
 def azure_get_tables(server_name: str, database_name: str):
     try:
         output = ""
@@ -227,7 +228,7 @@ def azure_get_tables(server_name: str, database_name: str):
         raise HTTPException(status_code=500, detail=str(e))
    
 @app.post("/azure/import/multiple")
-async def azure_mult_table(server_name: str, database_name: str, files: List[UploadFile] = File(...)):
+async def azure_mult_table(server_name: str, database_name: str, new_schema_name: str, files: List[UploadFile] = File(...)):
     try:
         AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
         with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
