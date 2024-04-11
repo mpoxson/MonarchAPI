@@ -1,6 +1,6 @@
 # MonarchAPI
 
-- Download python (3.10 or higher)
+- Download python (3.10)
 - Download ODBC Driver 18 for SQL Server
 - pip install fastapi
 - pip install uvicorn
