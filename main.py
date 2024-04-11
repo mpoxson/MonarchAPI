@@ -1,13 +1,9 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 import os
-import mysql.connector
 import pandas as pd
 from io import StringIO
 import pyodbc, struct
 from azure import identity
-import psycopg2
-import sys
-import boto3
 import csv
 from typing import List
 
@@ -357,10 +353,6 @@ async def azure_schema_data(server_name: str, database_name: str, new_schema_nam
         AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
         with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
             cursor = conn.cursor()
-            if (new_schema_name.strip().lower() != "dbo"):
-                cursor.execute(f"USE {database_name};")
-                create_schema = f"CREATE SCHEMA {new_schema_name};"
-                cursor.execute(create_schema)
             for file in files:
                 if file.filename.endswith('.csv'):
                         file_name = file.filename
@@ -670,10 +662,6 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
     try:
         conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
         cursor = conn.cursor()
-        if (new_schema_name.strip().lower() != "dbo"):
-            cursor.execute(f"USE {database_name};")
-            create_schema = f"CREATE SCHEMA {new_schema_name};"
-            cursor.execute(create_schema)
         for file in files:
             if file.filename.endswith('.csv'):
                 file_name = file.filename
@@ -841,16 +829,6 @@ def primary(pk):
         return " PRIMARY KEY"
     else:
         return ""
-
-#SELECT schema_name FROM information_schema.schemata;
-# ALL SCHEMA TABLES
-
-#SELECT * FROM master.sys.databases
-#All databases on server
-        
-#ToDo: 
-# output errors (try catch)
-# ask for aws schemas
 
         
 # Create front end that is pretty
