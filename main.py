@@ -36,20 +36,19 @@ connection_string_17 = f"DRIVER={driver_17};SERVER={server_17};DATABASE={databas
 ##############################################################################################################################################
 
 @app.post("/migrate/Azure_to_AWS")
-async def azure_to_aws(azure_server_name: str, azure_database_name: str, port: str, server: str, username: str, password: str, database_name: str):
+async def azure_to_aws(azure_server_name: str, azure_database_name: str, aws_port: str, aws_server: str, aws_username: str, aws_password: str, aws_database_name: str):
     try:
         AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (azure_server_name, azure_database_name)
         with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
         #     #get azure data
-            con2 = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
+            con2 = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (aws_port, aws_server, aws_username, aws_password))
             cursor2 = con2.cursor()
-
             cursor = conn.cursor()
             cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
                 FROM INFORMATION_SCHEMA.TABLES
                 WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
-
             results = (cursor.fetchall())
+            schema_list = ["dbo"]
             for table in results:
                 table_schema = table[0]
                 table_name = table[1]
@@ -62,9 +61,15 @@ async def azure_to_aws(azure_server_name: str, azure_database_name: str, port: s
                             LEFT OUTER JOIN sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
                             LEFT OUTER JOIN sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
                             WHERE c.object_id = OBJECT_ID('{table_schema}.{table_name}')""")
-                table_result = (cursor.fetchall())   
+                table_result = (cursor.fetchall()) 
+                # Create Schema
+                if (table_schema not in schema_list):
+                    cursor2.execute(f"USE {aws_database_name};")
+                    create_schema = f"CREATE SCHEMA {table_schema};"
+                    cursor2.execute(create_schema)
+                    schema_list.append(table_schema)
                 # Create table
-                create_table_query = f"CREATE TABLE {database_name}.dbo.{table_name} ("
+                create_table_query = f"CREATE TABLE {aws_database_name}.{table_schema}.{table_name} ("
                 iterrows = iter(table_result)
                 for row in iterrows:
                         #column name (0)
@@ -82,6 +87,7 @@ async def azure_to_aws(azure_server_name: str, azure_database_name: str, port: s
                 #print(create_table_query)
 
             for table in results:
+                print("Entering table")
                 if table != "table_name":
                     table_schema = table[0]
                     table_name = table[1]
@@ -101,7 +107,7 @@ async def azure_to_aws(azure_server_name: str, azure_database_name: str, port: s
                     for row in table_result:
                         placeholders = ",".join(["?"] * len(row))
                         columns = ",".join(column)  # Replace dots with underscores
-                        sql = f"INSERT INTO {database_name}.dbo.{table_name} ({columns}) VALUES ({placeholders})"
+                        sql = f"INSERT INTO {aws_database_name}.{table_schema}.{table_name} ({columns}) VALUES ({placeholders})"
                         cursor2.execute(sql, tuple(row))
                         #print(tuple(row))
         con2.commit()
@@ -110,17 +116,17 @@ async def azure_to_aws(azure_server_name: str, azure_database_name: str, port: s
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/migrate/Aws_to_Azure")
-async def aws_to_azure(azure_server_name: str, azure_database_name: str, port: str, server: str, username: str, password: str, database_name: str):
+async def aws_to_azure(azure_server_name: str, azure_database_name: str, aws_port: str, aws_server: str, aws_username: str, aws_password: str, aws_database_name: str):
     try:
         AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (azure_server_name, azure_database_name)
         with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
             #get azure data
-            con2 = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
+            con2 = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (aws_port, aws_server, aws_username, aws_password))
             cursor = conn.cursor()
 
             cursor2 = con2.cursor()
             cursor2.execute(f"""SELECT TABLE_SCHEMA, TABLE_NAME
-                FROM {database_name}.INFORMATION_SCHEMA.TABLES
+                FROM {aws_database_name}.INFORMATION_SCHEMA.TABLES
                 WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
 
             results = (cursor2.fetchall())
@@ -128,15 +134,21 @@ async def aws_to_azure(azure_server_name: str, azure_database_name: str, port: s
                 table_schema = table[0]
                 table_name = table[1]
                 column = []
+                schema_list = ["dbo"]
                 #select everything from each table, make into csv            
                 cursor2.execute(f"""SELECT DISTINCT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
                             c.max_length 'Max Length', c.precision , c.scale
-                            FROM {database_name}.sys.columns c
-                            INNER JOIN {database_name}.sys.types t ON c.user_type_id = t.user_type_id
-                            LEFT OUTER JOIN {database_name}.sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
-                            LEFT OUTER JOIN {database_name}.sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
-                            WHERE c.object_id = OBJECT_ID('{database_name}.{table_schema}.{table_name}')""")
-                table_result = (cursor2.fetchall())   
+                            FROM {aws_database_name}.sys.columns c
+                            INNER JOIN {aws_database_name}.sys.types t ON c.user_type_id = t.user_type_id
+                            LEFT OUTER JOIN {aws_database_name}.sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+                            LEFT OUTER JOIN {aws_database_name}.sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+                            WHERE c.object_id = OBJECT_ID('{aws_database_name}.{table_schema}.{table_name}')""")
+                table_result = (cursor2.fetchall())  
+                # Create Schema
+                if (table_schema not in schema_list):
+                    create_schema = f"CREATE SCHEMA {azure_database_name}.{table_schema};"
+                    cursor.execute(create_schema)
+                    schema_list.append(table_schema) 
                 # Create table
                 create_table_query = f"CREATE TABLE {azure_database_name}.dbo.{table_name} ("
                 iterrows = iter(table_result)
@@ -156,11 +168,12 @@ async def aws_to_azure(azure_server_name: str, azure_database_name: str, port: s
                 #print(create_table_query)
 
             for table in results:
+                print("Entering table")
                 if table != "table_name":
                     table_schema = table[0]
                     table_name = table[1]
                     #select everything from each table, make into csv            
-                    cursor2.execute(f"select * from {database_name}.{table_schema}.{table_name};")
+                    cursor2.execute(f"select * from {aws_database_name}.{table_schema}.{table_name};")
                     table_result = (cursor2.fetchall())
 
                     column = []
@@ -175,7 +188,7 @@ async def aws_to_azure(azure_server_name: str, azure_database_name: str, port: s
                     for row in table_result:
                         placeholders = ",".join(["?"] * len(row))
                         columns = ",".join(column)  # Replace dots with underscores
-                        sql = f"INSERT INTO {azure_database_name}.dbo.{table_name} ({columns}) VALUES ({placeholders})"
+                        sql = f"INSERT INTO {azure_database_name}.{table_schema}.{table_name} ({columns}) VALUES ({placeholders})"
                         cursor.execute(sql, tuple(row))
                     #  print(tuple(row))
         conn.commit()
