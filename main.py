@@ -80,7 +80,6 @@ async def azure_to_aws(azure_server_name: str, azure_database_name: str, port: s
                 create_table_query = create_table_query[:-2] + ");"
                 cursor2.execute(create_table_query)
                 #print(create_table_query)
-                con2.commit()
 
             for table in results:
                 if table != "table_name":
@@ -105,7 +104,7 @@ async def azure_to_aws(azure_server_name: str, azure_database_name: str, port: s
                         sql = f"INSERT INTO {database_name}.dbo.{table_name} ({columns}) VALUES ({placeholders})"
                         cursor2.execute(sql, tuple(row))
                         #print(tuple(row))
-                    con2.commit()
+        con2.commit()
         return "Migration Complete"
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -155,7 +154,6 @@ async def aws_to_azure(azure_server_name: str, azure_database_name: str, port: s
                 create_table_query = create_table_query[:-2] + ");"
                 cursor.execute(create_table_query)
                 #print(create_table_query)
-                conn.commit()
 
             for table in results:
                 if table != "table_name":
@@ -180,7 +178,7 @@ async def aws_to_azure(azure_server_name: str, azure_database_name: str, port: s
                         sql = f"INSERT INTO {azure_database_name}.dbo.{table_name} ({columns}) VALUES ({placeholders})"
                         cursor.execute(sql, tuple(row))
                     #  print(tuple(row))
-                    conn.commit()
+        conn.commit()
         return "Migration Complete"
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -217,127 +215,126 @@ def azure_get_tables(server_name: str, database_name: str):
    
 @app.post("/azure/import/multiple")
 async def azure_mult_table(server_name: str, database_name: str, files: List[UploadFile] = File(...)):
-    AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
-    with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
-        cursor = conn.cursor()
-        for file in files:
-            if file.filename.endswith('.csv'):
-                try: 
-                    file_name = file.filename
-                    #table_name = os.path.splitext(file_name)[0]
-                    table_name = file_name.rsplit( ".", 1 )[ 0 ]
+    try:
+        AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
+        with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
+            cursor = conn.cursor()
+            for file in files:
+                if file.filename.endswith('.csv'):
+                        file_name = file.filename
+                        #table_name = os.path.splitext(file_name)[0]
+                        table_name = file_name.rsplit( ".", 1 )[ 0 ]
 
-                    contents = await file.read()
-                    
-                    df = pd.read_csv(StringIO(contents.decode('utf-8')))
-                    #df = pd.read_csv(file_name)
+                        contents = await file.read()
+                        
+                        df = pd.read_csv(StringIO(contents.decode('utf-8')))
+                        #df = pd.read_csv(file_name)
 
-                    #conn = pyodbc.connect(connection_string_17)
+                        #conn = pyodbc.connect(connection_string_17)
 
-                    # Create table
-                    create_table_query = f"CREATE TABLE dbo.{table_name} ("
-                    for column_name in df.columns:
-                        column_name_cleaned = column_name.replace('.', '_')  # Replace dots with underscores
-                        create_table_query += f"{column_name_cleaned} VARCHAR(255), "
-                    create_table_query = create_table_query[:-2] + ");"
-                    cursor.execute(create_table_query)
+                        # Create table
+                        create_table_query = f"CREATE TABLE dbo.{table_name} ("
+                        for column_name in df.columns:
+                            column_name_cleaned = column_name.replace('.', '_')  # Replace dots with underscores
+                            create_table_query += f"{column_name_cleaned} VARCHAR(255), "
+                        create_table_query = create_table_query[:-2] + ");"
+                        cursor.execute(create_table_query)
 
-                    # Insert data
-                    for index, row in df.iterrows():
-                        placeholders = ",".join(["?"] * len(row))
-                        columns = ",".join([col.replace('.', '_') for col in row.index])  # Replace dots with underscores
-                        sql = f"INSERT INTO dbo.{table_name} ({columns}) VALUES ({placeholders})"
-                        cursor.execute(sql, tuple(row))
-                    conn.commit()
-                except Exception as e:
-                    raise HTTPException(status_code=500, detail=str(e))
-            else:
-                return {"error": "Please upload a CSV file."}
-        return {"message": "Data imported successfully."}
+                        # Insert data
+                        for index, row in df.iterrows():
+                            placeholders = ",".join(["?"] * len(row))
+                            columns = ",".join([col.replace('.', '_') for col in row.index])  # Replace dots with underscores
+                            sql = f"INSERT INTO dbo.{table_name} ({columns}) VALUES ({placeholders})"
+                            cursor.execute(sql, tuple(row))
+                else:
+                    return {"error": "Please upload a CSV file."}
+            conn.commit()
+            return {"message": "Data imported successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     
 @app.post("/azure/import/schema")
 async def azure_import_schema(server_name: str, database_name: str, files: List[UploadFile] = File(...)):
-    AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
-    with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
-        cursor = conn.cursor()
-        for file in files:
-            if file.filename.endswith('.csv'):
-                try: 
-                    file_name = file.filename
-                    #table_name = os.path.splitext(file_name)[0]
-                    table_name = file_name.rsplit( ".", 1 )[ 0 ]
+    try:
+        AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
+        with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
+            cursor = conn.cursor()
+            for file in files:
+                if file.filename.endswith('.csv'):
+                        file_name = file.filename
+                        #table_name = os.path.splitext(file_name)[0]
+                        table_name = file_name.rsplit( ".", 1 )[ 0 ]
 
-                    contents = await file.read()
-                    
-                    df = pd.read_csv(StringIO(contents.decode('utf-8')))
-                    #df = pd.read_csv(file_name)
+                        contents = await file.read()
+                        
+                        df = pd.read_csv(StringIO(contents.decode('utf-8')))
+                        #df = pd.read_csv(file_name)
 
-                    #conn = pyodbc.connect(connection_string_17)
+                        #conn = pyodbc.connect(connection_string_17)
 
-                    # Create table
-                    create_table_query = f"CREATE TABLE dbo.{table_name} ("
-                    for index, row in df.iterrows():
-                        #column name (0)
-                        column_name_cleaned = tuple(row)[0].replace('.', '_')  # Replace dots with underscores
-                        # 1 (data type) 4 (max lenth) 5 (precision) 6 (scale)
-                        data_type = data_typer(tuple(row)[1], tuple(row)[4], tuple(row)[5], tuple(row)[6])
-                        # null (2) 
-                        nullable = nulls(tuple(row)[2])
-                        # primary key (3)
-                        #pk = primary(tuple(row)[3])
-                        #put together
-                        create_table_query += f"{column_name_cleaned} {data_type}{nullable}, "
-                    create_table_query = create_table_query[:-2] + ");"
-                    cursor.execute(create_table_query)
-
-                    conn.commit()
-                except Exception as e:
-                    raise HTTPException(status_code=500, detail=str(e))
-            else:
-                return {"error": "Please upload a CSV file."}
-        return {"message": "Data imported successfully."}
+                        # Create table
+                        create_table_query = f"CREATE TABLE dbo.{table_name} ("
+                        for index, row in df.iterrows():
+                            #column name (0)
+                            column_name_cleaned = tuple(row)[0].replace('.', '_')  # Replace dots with underscores
+                            # 1 (data type) 4 (max lenth) 5 (precision) 6 (scale)
+                            data_type = data_typer(tuple(row)[1], tuple(row)[4], tuple(row)[5], tuple(row)[6])
+                            # null (2) 
+                            nullable = nulls(tuple(row)[2])
+                            # primary key (3)
+                            #pk = primary(tuple(row)[3])
+                            #put together
+                            create_table_query += f"{column_name_cleaned} {data_type}{nullable}, "
+                        create_table_query = create_table_query[:-2] + ");"
+                        cursor.execute(create_table_query)
+                else:
+                    return {"error": "Please upload a CSV file."}
+            conn.commit()
+            return {"message": "Data imported successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     
 
 @app.post("/azure/import/schema/data")
 async def azure_schema_data(server_name: str, database_name: str, files: List[UploadFile] = File(...)):
-    AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
-    with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
-        cursor = conn.cursor()
-        for file in files:
-            if file.filename.endswith('.csv'):
-                try: 
-                    file_name = file.filename
-                    #table_name = os.path.splitext(file_name)[0]
-                    table_name = file_name.rsplit( ".", 1 )[ 0 ]
+    try:
+        AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
+        with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
+            cursor = conn.cursor()
+            for file in files:
+                if file.filename.endswith('.csv'):
+                        file_name = file.filename
+                        #table_name = os.path.splitext(file_name)[0]
+                        table_name = file_name.rsplit( ".", 1 )[ 0 ]
 
-                    data = []
-                    head = 1
-                    heads = []
-                    contents = await file.read()  # Read the file contents
-                    decoded_content = contents.decode('utf-8').splitlines()
-                    csv_reader = csv.reader(decoded_content)
-                    for row in csv_reader:
-                        if (head == 1):
-                            heads=row
-                            head +=-1
-                        else:
-                            data.append(row)
+                        data = []
+                        head = 1
+                        heads = []
+                        contents = await file.read()  # Read the file contents
+                        decoded_content = contents.decode('utf-8').splitlines()
+                        csv_reader = csv.reader(decoded_content)
+                        for row in csv_reader:
+                            if (head == 1):
+                                heads=row
+                                head +=-1
+                            else:
+                                data.append(row)
 
-                    for i in range(len(heads)):
-                        heads[i] = heads[i].replace(".", "_")
-                    
-                    # Insert data
-                    for row in data:
-                        placeholders = ",".join(["?"] * len(row))
-                        columns = ",".join(heads)  # Replace dots with underscores
-                        sql = f"INSERT INTO dbo.{table_name} ({columns}) VALUES ({placeholders})"
-                        cursor.execute(sql, tuple(row))
-                    conn.commit()
-                except Exception as e:
-                    raise HTTPException(status_code=500, detail=str(e))
-            else:
-                return {"error": "Please upload a CSV file."}
-        return {"message": "Data imported successfully."}
+                        for i in range(len(heads)):
+                            heads[i] = heads[i].replace(".", "_")
+                        
+                        # Insert data
+                        for row in data:
+                            placeholders = ",".join(["?"] * len(row))
+                            columns = ",".join(heads)  # Replace dots with underscores
+                            sql = f"INSERT INTO dbo.{table_name} ({columns}) VALUES ({placeholders})"
+                            cursor.execute(sql, tuple(row))
+                else:
+                    return {"error": "Please upload a CSV file."}
+            conn.commit()
+            return {"message": "Data imported successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
    
     
 #Need parameters for database name, server
@@ -504,7 +501,6 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
         
         for file in files:
             if file.filename.endswith('.csv'):
-                try: 
                     file_name = file.filename
                     table_name = file_name.rsplit( ".", 1 )[ 0 ]
 
@@ -532,11 +528,9 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
                             row_clean.append(f"'{el}'")
                         
                         cursor.execute(sql, row_clean)
-                    conn.commit()
-                except Exception as e:
-                    raise HTTPException(status_code=500, detail=str(e))
             else:
                 return {"error": "Please upload a CSV file."}
+        conn.commit()
         return {"message": "Data imported successfully."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -544,53 +538,52 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
 
 @app.post("/aws/import/schema")
 async def aws_import_schema(port: str, server: str, username: str, password: str, database_name: str, files: List[UploadFile] = File(...)):
-    conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
-    cursor = conn.cursor()
-    for file in files:
-        if file.filename.endswith('.csv'):
-            try: 
-                file_name = file.filename
-                #table_name = os.path.splitext(file_name)[0]
-                table_name = file_name.rsplit( ".", 1 )[ 0 ]
+    try:
+        conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
+        cursor = conn.cursor()
+        for file in files:
+            if file.filename.endswith('.csv'):
+                    file_name = file.filename
+                    #table_name = os.path.splitext(file_name)[0]
+                    table_name = file_name.rsplit( ".", 1 )[ 0 ]
 
-                contents = await file.read()
-                
-                df = pd.read_csv(StringIO(contents.decode('utf-8')))
-                #df = pd.read_csv(file_name)
+                    contents = await file.read()
+                    
+                    df = pd.read_csv(StringIO(contents.decode('utf-8')))
+                    #df = pd.read_csv(file_name)
 
-                #conn = pyodbc.connect(connection_string_17)
+                    #conn = pyodbc.connect(connection_string_17)
 
-                # Create table
-                create_table_query = f"CREATE TABLE {database_name}.dbo.{table_name} ("
-                for index, row in df.iterrows():
-                    #column name (0)
-                    column_name_cleaned = tuple(row)[0].replace('.', '_')  # Replace dots with underscores
-                    # 1 (data type) 4 (max lenth) 5 (precision) 6 (scale)
-                    data_type = data_typer(tuple(row)[1], tuple(row)[4], tuple(row)[5], tuple(row)[6])
-                    # null (2) 
-                    nullable = nulls(tuple(row)[2])
-                    # primary key (3)
-                    #pk = primary(tuple(row)[3])
-                    #put together
-                    create_table_query += f"{column_name_cleaned} {data_type}{nullable}, "
-                create_table_query = create_table_query[:-2] + ");"
-                cursor.execute(create_table_query)
-
-                conn.commit()
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-        else:
-            return {"error": "Please upload a CSV file."}
-    return {"message": "Data imported successfully."}
+                    # Create table
+                    create_table_query = f"CREATE TABLE {database_name}.dbo.{table_name} ("
+                    for index, row in df.iterrows():
+                        #column name (0)
+                        column_name_cleaned = tuple(row)[0].replace('.', '_')  # Replace dots with underscores
+                        # 1 (data type) 4 (max lenth) 5 (precision) 6 (scale)
+                        data_type = data_typer(tuple(row)[1], tuple(row)[4], tuple(row)[5], tuple(row)[6])
+                        # null (2) 
+                        nullable = nulls(tuple(row)[2])
+                        # primary key (3)
+                        #pk = primary(tuple(row)[3])
+                        #put together
+                        create_table_query += f"{column_name_cleaned} {data_type}{nullable}, "
+                    create_table_query = create_table_query[:-2] + ");"
+                    cursor.execute(create_table_query)
+            else:
+                return {"error": "Please upload a CSV file."}
+        conn.commit()
+        return {"message": "Data imported successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/aws/import/schema/data")
 async def aws_mult_table(port: str, server: str, username: str, password: str, database_name: str, files: List[UploadFile] = File(...)):
-    conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
-    cursor = conn.cursor()
-    
-    for file in files:
-        if file.filename.endswith('.csv'):
-            try: 
+    try:
+        conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
+        cursor = conn.cursor()
+        
+        for file in files:
+            if file.filename.endswith('.csv'):
                 file_name = file.filename
                 table_name = file_name.rsplit( ".", 1 )[ 0 ]
 
@@ -617,12 +610,12 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
                     columns = ",".join(heads)  # Replace dots with underscores
                     sql = f"INSERT INTO {database_name}.dbo.{table_name} ({columns}) VALUES ({placeholders})"
                     cursor.execute(sql, tuple(row))
-                conn.commit()
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-        else:
-            return {"error": "Please upload a CSV file."}
-    return {"message": "Data imported successfully."}
+            else:
+                return {"error": "Please upload a CSV file."}
+        conn.commit()
+        return {"message": "Data imported successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 ###############################################################################################################################
 
