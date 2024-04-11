@@ -233,6 +233,10 @@ async def azure_mult_table(server_name: str, database_name: str, new_schema_name
         AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
         with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
             cursor = conn.cursor()
+            if (new_schema_name.strip().lower() != "dbo"):
+                cursor.execute(f"USE {database_name};")
+                create_schema = f"CREATE SCHEMA {new_schema_name};"
+                cursor.execute(create_schema)
             for file in files:
                 if file.filename.endswith('.csv'):
                         file_name = file.filename
@@ -247,7 +251,7 @@ async def azure_mult_table(server_name: str, database_name: str, new_schema_name
                         #conn = pyodbc.connect(connection_string_17)
 
                         # Create table
-                        create_table_query = f"CREATE TABLE dbo.{table_name} ("
+                        create_table_query = f"CREATE TABLE {new_schema_name}.{table_name} ("
                         for column_name in df.columns:
                             column_name_cleaned = column_name.replace('.', '_')  # Replace dots with underscores
                             create_table_query += f"{column_name_cleaned} VARCHAR(255), "
@@ -258,7 +262,7 @@ async def azure_mult_table(server_name: str, database_name: str, new_schema_name
                         for index, row in df.iterrows():
                             placeholders = ",".join(["?"] * len(row))
                             columns = ",".join([col.replace('.', '_') for col in row.index])  # Replace dots with underscores
-                            sql = f"INSERT INTO dbo.{table_name} ({columns}) VALUES ({placeholders})"
+                            sql = f"INSERT INTO {new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
                             cursor.execute(sql, tuple(row))
                 else:
                     return {"error": "Please upload a CSV file."}
@@ -268,11 +272,15 @@ async def azure_mult_table(server_name: str, database_name: str, new_schema_name
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.post("/azure/import/schema")
-async def azure_import_schema(server_name: str, database_name: str, files: List[UploadFile] = File(...)):
+async def azure_import_schema(server_name: str, database_name: str, new_schema_name: str, files: List[UploadFile] = File(...)):
     try:
         AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
         with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
             cursor = conn.cursor()
+            if (new_schema_name.strip().lower() != "dbo"):
+                cursor.execute(f"USE {database_name};")
+                create_schema = f"CREATE SCHEMA {new_schema_name};"
+                cursor.execute(create_schema)
             for file in files:
                 if file.filename.endswith('.csv'):
                         file_name = file.filename
@@ -287,7 +295,7 @@ async def azure_import_schema(server_name: str, database_name: str, files: List[
                         #conn = pyodbc.connect(connection_string_17)
 
                         # Create table
-                        create_table_query = f"CREATE TABLE dbo.{table_name} ("
+                        create_table_query = f"CREATE TABLE {new_schema_name}.{table_name} ("
                         for index, row in df.iterrows():
                             #column name (0)
                             column_name_cleaned = tuple(row)[0].replace('.', '_')  # Replace dots with underscores
@@ -310,11 +318,15 @@ async def azure_import_schema(server_name: str, database_name: str, files: List[
     
 
 @app.post("/azure/import/schema/data")
-async def azure_schema_data(server_name: str, database_name: str, files: List[UploadFile] = File(...)):
+async def azure_schema_data(server_name: str, database_name: str, new_schema_name: str, files: List[UploadFile] = File(...)):
     try:
         AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
         with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
             cursor = conn.cursor()
+            if (new_schema_name.strip().lower() != "dbo"):
+                cursor.execute(f"USE {database_name};")
+                create_schema = f"CREATE SCHEMA {new_schema_name};"
+                cursor.execute(create_schema)
             for file in files:
                 if file.filename.endswith('.csv'):
                         file_name = file.filename
@@ -341,7 +353,7 @@ async def azure_schema_data(server_name: str, database_name: str, files: List[Up
                         for row in data:
                             placeholders = ",".join(["?"] * len(row))
                             columns = ",".join(heads)  # Replace dots with underscores
-                            sql = f"INSERT INTO dbo.{table_name} ({columns}) VALUES ({placeholders})"
+                            sql = f"INSERT INTO {new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
                             cursor.execute(sql, tuple(row))
                 else:
                     return {"error": "Please upload a CSV file."}
@@ -508,11 +520,14 @@ def aws_get_data(port: str, server: str, username: str, password: str, database_
 
     
 @app.post("/aws/import/double")
-async def aws_mult_table(port: str, server: str, username: str, password: str, database_name: str, files: List[UploadFile] = File(...)):
+async def aws_mult_table(port: str, server: str, username: str, password: str, database_name: str, new_schema_name: str, files: List[UploadFile] = File(...)):
     try:
         conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
         cursor = conn.cursor()
-        
+        if (new_schema_name.strip().lower() != "dbo"):
+            cursor.execute(f"USE {database_name};")
+            create_schema = f"CREATE SCHEMA {new_schema_name};"
+            cursor.execute(create_schema)
         for file in files:
             if file.filename.endswith('.csv'):
                     file_name = file.filename
@@ -525,7 +540,7 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
 
 
                     # Create table
-                    create_table_query = f"CREATE TABLE {database_name}.dbo.{table_name} ("
+                    create_table_query = f"CREATE TABLE {database_name}.{new_schema_name}.{table_name} ("
                     for column_name in df.columns:
                         column_name_cleaned = column_name.replace('.', '_')  # Replace dots with underscores
                         create_table_query += f"{column_name_cleaned} VARCHAR(255), "
@@ -536,7 +551,7 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
                     for index, row in df.iterrows():
                         placeholders = ",".join(["?"] * len(row))
                         columns = ",".join([col.replace('.', '_') for col in row.index])  # Replace dots with underscores
-                        sql = f"INSERT INTO {database_name}.dbo.{table_name} ({columns}) VALUES ({placeholders})"
+                        sql = f"INSERT INTO {database_name}.{new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
                         row_clean = []
                         for el in tuple(row):
                             row_clean.append(f"'{el}'")
@@ -551,10 +566,14 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
 
 
 @app.post("/aws/import/schema")
-async def aws_import_schema(port: str, server: str, username: str, password: str, database_name: str, files: List[UploadFile] = File(...)):
+async def aws_import_schema(port: str, server: str, username: str, password: str, database_name: str, new_schema_name: str, files: List[UploadFile] = File(...)):
     try:
         conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
         cursor = conn.cursor()
+        if (new_schema_name.strip().lower() != "dbo"):
+            cursor.execute(f"USE {database_name};")
+            create_schema = f"CREATE SCHEMA {new_schema_name};"
+            cursor.execute(create_schema)
         for file in files:
             if file.filename.endswith('.csv'):
                     file_name = file.filename
@@ -569,7 +588,7 @@ async def aws_import_schema(port: str, server: str, username: str, password: str
                     #conn = pyodbc.connect(connection_string_17)
 
                     # Create table
-                    create_table_query = f"CREATE TABLE {database_name}.dbo.{table_name} ("
+                    create_table_query = f"CREATE TABLE {database_name}.{new_schema_name}.{table_name} ("
                     for index, row in df.iterrows():
                         #column name (0)
                         column_name_cleaned = tuple(row)[0].replace('.', '_')  # Replace dots with underscores
@@ -591,11 +610,14 @@ async def aws_import_schema(port: str, server: str, username: str, password: str
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/aws/import/schema/data")
-async def aws_mult_table(port: str, server: str, username: str, password: str, database_name: str, files: List[UploadFile] = File(...)):
+async def aws_mult_table(port: str, server: str, username: str, password: str, database_name: str, new_schema_name: str, files: List[UploadFile] = File(...)):
     try:
         conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
         cursor = conn.cursor()
-        
+        if (new_schema_name.strip().lower() != "dbo"):
+            cursor.execute(f"USE {database_name};")
+            create_schema = f"CREATE SCHEMA {new_schema_name};"
+            cursor.execute(create_schema)
         for file in files:
             if file.filename.endswith('.csv'):
                 file_name = file.filename
@@ -622,7 +644,7 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
                 for row in data:
                     placeholders = ",".join(["?"] * len(row))
                     columns = ",".join(heads)  # Replace dots with underscores
-                    sql = f"INSERT INTO {database_name}.dbo.{table_name} ({columns}) VALUES ({placeholders})"
+                    sql = f"INSERT INTO {database_name}.{new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
                     cursor.execute(sql, tuple(row))
             else:
                 return {"error": "Please upload a CSV file."}
