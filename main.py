@@ -178,6 +178,33 @@ async def aws_to_azure(azure_server_name: str, azure_database_name: str, port: s
                     print(tuple(row))
                 conn.commit()
     return "Migration Complete"
+
+###################################################################################################################################################################################
+
+@app.get("/azure/tables/{server_name}/{database_name}")
+def azure_get_tables(server_name: str, database_name: str):
+    output = ""
+    column = []
+    AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (server_name, database_name)
+    with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
+
+        
+        results = (cursor.fetchall())
+        for tupler in cursor.description:
+            #get names of columns (first value in tuple)
+            column.append(tupler[0])
+
+        location = create_csv(database_name, "table_info", results, column)
+
+        #find file path and dynamically change string
+        output = f"File has been saved to: {location}" 
+
+
+    return output
    
 @app.post("/azure/import/multiple")
 async def azure_mult_table(server_name: str, database_name: str, files: List[UploadFile] = File(...)):
@@ -359,7 +386,7 @@ def azure_get_columns(server_name: str, database_name: str):
             table_schema = table[0]
             table_name = table[1]
 
-            cursor.execute(f"""SELECT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
+            cursor.execute(f"""SELECT DISTINCT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
                             c.max_length 'Max Length', c.precision , c.scale
                             FROM sys.columns c
                             INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
@@ -394,7 +421,29 @@ def get_conn(AZURE_SQL_CONNECTIONSTRING : str):
 #AWS
 ################################################################################################
 
- 
+@app.get("/aws/tables")
+def aws_get_tables(port: str, server: str, username: str, password: str, database_name: str):
+    #PORT=1433;SERVER=monarch.cjgga6i4mae6.us-east-2.rds.amazonaws.com;UID=;PWD=;db=monarchdb
+    try:
+        conn = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (port, server, username, password))
+        cur = conn.cursor()
+        cur.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
+            FROM %s.INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE = 'BASE TABLE'""" % (database_name))
+        query_results = cur.fetchall()
+        column = []
+        for tupler in cur.description:
+            #get names of columns (first value in tuple)
+            column.append(tupler[0])
+
+        location = create_csv(database_name, "table_info", query_results, column)
+
+        #find file path and dynamically change string
+        output = f"File has been saved to: {location}" 
+        return output
+    
+    except Exception as e:
+        print("Database connection failed due to {}".format(e))  
 
 @app.get("/aws/data")
 def aws_get_data(port: str, server: str, username: str, password: str, database_name: str):
@@ -485,7 +534,7 @@ def aws_get_columns(port: str, server: str, username: str, password: str, databa
         table_schema = table[0]
         table_name = table[1]
 
-        cursor.execute(f"""SELECT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
+        cursor.execute(f"""SELECT DISTINCT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
                         c.max_length 'Max Length', c.precision , c.scale
                         FROM {database_name}.sys.columns c
                         INNER JOIN {database_name}.sys.types t ON c.user_type_id = t.user_type_id
@@ -722,10 +771,7 @@ def primary(pk):
 #All databases on server
         
 #ToDo: 
-# import using column info first
-# Change name of functions
 # output errors (try catch)
-# api route that connects directly between the two without a local copy
 # ask for aws schemas
 
         

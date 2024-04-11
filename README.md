@@ -53,5 +53,5 @@ http://127.0.0.1:8000/docs
 - implement more data scraping using sql - can grab multiple schemas, more table info, multiple databases
 - host in cloud
 - make more secure
-- integrate (combine) tables and deal with duplicates
+- integrate (combine) tables and deal with duplicates (alter table/insert into existing table)
 - implement constraints
