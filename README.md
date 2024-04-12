@@ -1,6 +1,6 @@
 # MonarchAPI
 
-- Download python (3.10)
+- Download python (3.10 or higher)
 - Download ODBC Driver 18 for SQL Server
 - pip install fastapi
 - pip install uvicorn
@@ -46,6 +46,8 @@ http://127.0.0.1:8000/docs
 - make sure your credentials have access to both dbs and can read/write/create
 - aws: will only grab from dbo schema
 - import will only import to dbo
+- Binary, for schema data import, saves as varchar(max) due to limitations in the decoder
+- SLOW (4 minutes for 11MB DB)
 
 # Future:
 

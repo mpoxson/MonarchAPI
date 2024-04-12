@@ -34,11 +34,12 @@ connection_string_17 = f"DRIVER={driver_17};SERVER={server_17};DATABASE={databas
 @app.post("/migrate/Azure_to_AWS")
 async def azure_to_aws(azure_server_name: str, azure_database_name: str, aws_port: str, aws_server: str, aws_username: str, aws_password: str, aws_database_name: str):
     try:
+        con2 = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (aws_port, aws_server, aws_username, aws_password))
+        cursor2 = con2.cursor()
         AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (azure_server_name, azure_database_name)
         with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
         #     #get azure data
-            con2 = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (aws_port, aws_server, aws_username, aws_password))
-            cursor2 = con2.cursor()
+
             cursor = conn.cursor()
             cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
                 FROM INFORMATION_SCHEMA.TABLES
@@ -122,13 +123,14 @@ async def azure_to_aws(azure_server_name: str, azure_database_name: str, aws_por
 @app.post("/migrate/Aws_to_Azure")
 async def aws_to_azure(azure_server_name: str, azure_database_name: str, aws_port: str, aws_server: str, aws_username: str, aws_password: str, aws_database_name: str):
     try:
+        con2 = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (aws_port, aws_server, aws_username, aws_password))
+        cursor2 = con2.cursor()
         AZURE_SQL_CONNECTIONSTRING = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30" % (azure_server_name, azure_database_name)
         with get_conn(AZURE_SQL_CONNECTIONSTRING) as conn:
             #get azure data
-            con2 = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30' % (aws_port, aws_server, aws_username, aws_password))
             cursor = conn.cursor()
 
-            cursor2 = con2.cursor()
+            
             cursor2.execute(f"""SELECT TABLE_SCHEMA, TABLE_NAME
                 FROM {aws_database_name}.INFORMATION_SCHEMA.TABLES
                 WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
@@ -199,13 +201,13 @@ async def aws_to_azure(azure_server_name: str, azure_database_name: str, aws_por
         conn.commit()
         cursor2.close()
         con2.close()
-        cursor2.close()
+        cursor.close()
         conn.close()
         return "Migration Complete"
     except Exception as e:
         cursor2.close()
         con2.close()
-        cursor2.close()
+        cursor.close()
         conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -269,10 +271,9 @@ async def azure_mult_table(server_name: str, database_name: str, new_schema_name
                         create_table_query = f"CREATE TABLE {new_schema_name}.{table_name} ("
                         for column_name in df.columns:
                             column_name_cleaned = column_name.replace('.', '_')  # Replace dots with underscores
-                            create_table_query += f"{column_name_cleaned} VARCHAR(255), "
+                            create_table_query += f"{column_name_cleaned} NVARCHAR(MAX), "
                         create_table_query = create_table_query[:-2] + ");"
                         cursor.execute(create_table_query)
-
                         # Insert data
                         for index, row in df.iterrows():
                             placeholders = ",".join(["?"] * len(row))
@@ -280,19 +281,18 @@ async def azure_mult_table(server_name: str, database_name: str, new_schema_name
                             sql = f"INSERT INTO {new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
                             row_clean = []
                             for el in tuple(row):
-                                row_clean.append(f"'{el}'")
+                                if (type(el) is float):
+                                    row_clean.append(f"'{el}'")
+                                else:
+                                    row_clean.append(el)
                             cursor.execute(sql, row_clean)
                 else:
-                    cursor.close()
-                    conn.close()
                     return {"error": "Please upload a CSV file."}
+            
+            
             conn.commit()
-            cursor.close()
-            conn.close()
-            return {"message": "Data imported successfully."}
+        return {"message": "Data imported successfully."}
     except Exception as e:
-        cursor.close()
-        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.post("/azure/import/schema")
@@ -334,16 +334,10 @@ async def azure_import_schema(server_name: str, database_name: str, new_schema_n
                         create_table_query = create_table_query[:-2] + ");"
                         cursor.execute(create_table_query)
                 else:
-                    cursor.close()
-                    conn.close()
                     return {"error": "Please upload a CSV file."}
             conn.commit()
-            cursor.close()
-            conn.close()
-            return {"message": "Data imported successfully."}
+        return {"message": "Data imported successfully."}
     except Exception as e:
-        cursor.close()
-        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
     
 
@@ -370,7 +364,8 @@ async def azure_schema_data(server_name: str, database_name: str, new_schema_nam
                                 heads=row
                                 head +=-1
                             else:
-                                data.append(row)
+                                processed_row = [None if cell.strip() == '' else cell for cell in row]
+                                data.append(processed_row)
 
                         for i in range(len(heads)):
                             heads[i] = heads[i].replace(".", "_")
@@ -382,16 +377,10 @@ async def azure_schema_data(server_name: str, database_name: str, new_schema_nam
                             sql = f"INSERT INTO {new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
                             cursor.execute(sql, tuple(row))
                 else:
-                    cursor.close()
-                    conn.close()
                     return {"error": "Please upload a CSV file."}
             conn.commit()
-            cursor.close()
-            conn.close()
             return {"message": "Data imported successfully."}
     except Exception as e:
-        cursor.close()
-        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/azure/data")
@@ -445,13 +434,8 @@ def azure_get_data(server_name: str, database_name: str):
                     create_csv(f"{database_name}/{table_schema}/data", table_name, table_result, column)
                 
             output = f"Files have been saved to: ./{database_name}"
-
-        cursor.close()
-        conn.close()
         return output
     except Exception as e:
-        cursor.close()
-        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -579,7 +563,7 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
                     create_table_query = f"CREATE TABLE {database_name}.{new_schema_name}.{table_name} ("
                     for column_name in df.columns:
                         column_name_cleaned = column_name.replace('.', '_')  # Replace dots with underscores
-                        create_table_query += f"{column_name_cleaned} VARCHAR(255), "
+                        create_table_query += f"{column_name_cleaned} NVARCHAR(max), "
                     create_table_query = create_table_query[:-2] + ");"
                     cursor.execute(create_table_query)
 
@@ -590,7 +574,10 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
                         sql = f"INSERT INTO {database_name}.{new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
                         row_clean = []
                         for el in tuple(row):
-                            row_clean.append(f"'{el}'")
+                            if (type(el) is float):
+                                row_clean.append(f"'{el}'")
+                            else:
+                                row_clean.append(el)
                         
                         cursor.execute(sql, row_clean)
             else:
@@ -679,7 +666,8 @@ async def aws_mult_table(port: str, server: str, username: str, password: str, d
                         heads=row
                         head +=-1
                     else:
-                        data.append(row)
+                        processed_row = [None if cell.strip() == '' else cell for cell in row]
+                        data.append(processed_row)
 
                 for i in range(len(heads)):
                     heads[i] = heads[i].replace(".", "_")
@@ -748,9 +736,9 @@ def data_typer(type: str, length, precision, scale):
         case "ntext":
             data_type= "NTEXT"
         case "binary":
-            data_type= f"BINARY({length})"
+            data_type= f"NVARCHAR(max)"
         case "varbinary":
-            data_type= f"VARBINARY({divide_two(length)})"
+            data_type= f"NVARCHAR(max)"
         case "image":
             data_type= "IMAGE"
         #numeric
@@ -778,7 +766,7 @@ def data_typer(type: str, length, precision, scale):
             data_type= "REAL"
         #date and time
         case "datetime":
-            data_type= "DATETIME"
+            data_type= "DATETIME2"
         case "datetime2":
             data_type= "DATETIME2"
         case "smalldatetime":
