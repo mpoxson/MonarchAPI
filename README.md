@@ -57,3 +57,8 @@ http://127.0.0.1:8000/docs
 - integrate (combine) tables and deal with duplicates (alter table/insert into existing table)
 - implement constraints
 - expand to more servers (Mysql, postgres, etc)
+
+# My RDS server:
+
+- port = 1433
+- server = monarch.cjgga6i4mae6.us-east-2.rds.amazonaws.com
