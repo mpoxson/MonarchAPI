@@ -21,6 +21,10 @@ uvicorn main:app --reload
 
 - make sure your securtiy group allows public connections for aws
 
+# Scope
+
+- The scope of our project is smaller Sql Server databases on either Azure or AWS. We aim to move data from existing dbs to fresh/empty dbs. Some integration is possible, but only for the dbo schema.
+
 # How to see api endpoints and use them
 
 http://127.0.0.1:8000/docs
