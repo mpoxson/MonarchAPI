@@ -20,7 +20,7 @@ async def root():
 ##############################################################################################################################################
 
 
-@app.post("/migrate/Azure_To_AWS")
+@app.post("/Migrate/Azure_To_AWS")
 async def azure_to_aws(
     azure_server_name: str,
     azure_database_name: str,
@@ -147,7 +147,7 @@ async def azure_to_aws(
 
 
 # For comments, refer to above. Same process different direction.
-@app.post("/migrate/Aws_To_Azure")
+@app.post("/Migrate/AWS_To_Azure")
 async def aws_to_azure(
     azure_server_name: str,
     azure_database_name: str,
@@ -251,41 +251,277 @@ async def aws_to_azure(
 ###################################################################################################################################################################################
 
 
-@app.get("/Azure/Structure")
+@app.get("/Azure/Export/Structure")
 def azure_get_tables(server_name: str, database_name: str):
     try:
         output = ""
         column = []
+        # Connect to Azure
+        AZURE_SQL_CONNECTIONSTRING = (
+            "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30"
+            % (server_name, database_name)
+        )
+        with get_conn(AZURE_SQL_CONNECTIONSTRING) as azure_con:
+            # Get all schemas and their tables
+            cursor = azure_con.cursor()
+            cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
+                FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
+            results = cursor.fetchall()
+
+            for tupler in cursor.description:
+                # get names of columns (first value in tuple)
+                column.append(tupler[0])
+
+            # Create a csv and save it in a folder with the same name as the database
+            location = create_csv(database_name, "table_info", results, column)
+
+            # find file path and dynamically change string
+            output = f"File has been saved to: {location}"
+
+        return output
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/Azure/Export/Data")
+def azure_get_data(server_name: str, database_name: str):
+    try:
+        output = ""
+        # connect to azure
+        AZURE_SQL_CONNECTIONSTRING = (
+            "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30"
+            % (server_name, database_name)
+        )
+        with get_conn(AZURE_SQL_CONNECTIONSTRING) as azure_con:
+            # Get all user tables and their schema
+            cursor = azure_con.cursor()
+            cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
+                FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
+            init_results = cursor.fetchall()
+
+            # For each table in the database
+            for table in init_results:
+                # grab table name and schema name
+                table_schema = table[0]
+                table_name = table[1]
+
+                # Get all column information from table
+                cursor.execute(f"""SELECT DISTINCT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
+                                c.max_length 'Max Length', c.precision , c.scale
+                                FROM sys.columns c
+                                INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+                                LEFT OUTER JOIN sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+                                LEFT OUTER JOIN sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+                                WHERE c.object_id = OBJECT_ID('{table_schema}.{table_name}')""")
+                column = []
+                results = cursor.fetchall()
+
+                for tupler in cursor.description:
+                    # get names of columns (first value in tuple)
+                    column.append(tupler[0])
+
+                # create a csv with all the column information for that table in the schema. Table name is saved as file name, a new folder is created for the schema files for that database
+                create_csv(
+                    f"{database_name}/{table_schema}/schema",
+                    table_name,
+                    results,
+                    column,
+                )
+
+            # loops through tables again
+            for table in init_results:
+                if table != "table_name":
+                    table_schema = table[0]
+                    table_name = table[1]
+
+                    # select everything from each table, make into csv
+                    cursor.execute(f"select * from {table_schema}.{table_name};")
+                    table_result = cursor.fetchall()
+
+                    column = []
+                    for tupler in cursor.description:
+                        # get names of columns (first value in tuple)
+                        column.append(tupler[0])
+
+                    # Create csv for all the data in that table, saved in data folder
+                    create_csv(
+                        f"{database_name}/{table_schema}/data",
+                        table_name,
+                        table_result,
+                        column,
+                    )
+
+            output = f"Files have been saved to: ./{database_name}"
+        return output
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/Azure/Import/Schema")
+async def azure_import_schema(
+    server_name: str,
+    database_name: str,
+    new_schema_name: str,
+    schema_files: List[UploadFile] = File(...),
+    data_files: List[UploadFile] = File(...),
+):
+    try:
+        # connect to azure
         AZURE_SQL_CONNECTIONSTRING = (
             "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30"
             % (server_name, database_name)
         )
         with get_conn(AZURE_SQL_CONNECTIONSTRING) as azure_con:
             cursor = azure_con.cursor()
-            cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
-                FROM INFORMATION_SCHEMA.TABLES
-                WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
+            # creates new schema, if schema is dbo (which is automatically created), it skips schema creation
+            if new_schema_name.strip().lower() != "dbo":
+                cursor.execute(f"USE {database_name};")
+                create_schema = f"CREATE SCHEMA {new_schema_name};"
+                cursor.execute(create_schema)
 
-            results = cursor.fetchall()
-            for tupler in cursor.description:
-                # get names of columns (first value in tuple)
-                column.append(tupler[0])
+            # loops through schema files
+            for file in schema_files:
+                # checks to make sure file is a csv
+                if file.filename.endswith(".csv"):
+                    # grabs file name, file name will become table name
+                    file_name = file.filename
+                    table_name = file_name.rsplit(".", 1)[0]
 
-            location = create_csv(database_name, "table_info", results, column)
+                    # read file and turn it into a datafram
+                    contents = await file.read()
+                    df = pd.read_csv(StringIO(contents.decode("utf-8")))
 
-            # find file path and dynamically change string
-            output = f"File has been saved to: {location}"
+                    # Create table
+                    create_table_query = (
+                        f"CREATE TABLE {new_schema_name}.{table_name} ("
+                    )
 
-        cursor.close()
-        azure_con.close()
-        return output
+                    # loop through rows of csv, each row is a column in the new table
+                    for index, row in df.iterrows():
+                        # column name (0), Replace dots with underscores
+                        column_name_cleaned = tuple(row)[0].replace(".", "_")
+                        # 1 (data type) 4 (max lenth) 5 (precision) 6 (scale), returns DATATYPE(N) or DATATYPE(P,S)
+                        data_type = data_typer(
+                            tuple(row)[1], tuple(row)[4], tuple(row)[5], tuple(row)[6]
+                        )
+                        # null (2), returns NULL or NOT NULL
+                        nullable = nulls(tuple(row)[2])
+                        # primary key (3)
+                        # pk = primary(tuple(row)[3])
+                        # put together parts of create row
+                        create_table_query += (
+                            f"{column_name_cleaned} {data_type}{nullable}, "
+                        )
+                    # Create table
+                    create_table_query = create_table_query[:-2] + ");"
+                    cursor.execute(create_table_query)
+                else:
+                    return {"error": "Please upload a CSV file."}
+
+            # Loops through data files
+            for file in data_files:
+                if file.filename.endswith(".csv"):
+                    file_name = file.filename
+                    table_name = file_name.rsplit(".", 1)[0]
+
+                    data = []
+                    head = 1
+                    heads = []
+
+                    contents = await file.read()
+
+                    # reads content as an iterable
+                    decoded_content = contents.decode("utf-8").splitlines()
+                    csv_reader = csv.reader(decoded_content)
+
+                    # first row in the csv contains the headers, which are saved
+                    for row in csv_reader:
+                        if head == 1:
+                            heads = row
+                            head += -1
+                        else:
+                            # The rest of the rows are saved in an array, blanks are converted to None
+                            processed_row = [
+                                None if cell.strip() == "" else cell for cell in row
+                            ]
+                            data.append(processed_row)
+
+                    # Clean column names as necessary
+                    for i in range(len(heads)):
+                        heads[i] = heads[i].replace(".", "_")
+
+                    # Insert data
+                    for row in data:
+                        placeholders = ",".join(["?"] * len(row))
+                        columns = ",".join(heads)
+                        sql = f"INSERT INTO {new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
+                        cursor.execute(sql, tuple(row))
+                else:
+                    return {"error": "Please upload a CSV file."}
+            # Save changes
+            azure_con.commit()
+        return {"message": "Data imported successfully."}
     except Exception as e:
-        cursor.close()
-        azure_con.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/azure/import/multiple")
+# @app.post("/azure/import/schema/data")
+# async def azure_schema_data(
+#     server_name: str,
+#     database_name: str,
+#     new_schema_name: str,
+#     files: List[UploadFile] = File(...),
+# ):
+#     try:
+#         AZURE_SQL_CONNECTIONSTRING = (
+#             "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30"
+#             % (server_name, database_name)
+#         )
+#         with get_conn(AZURE_SQL_CONNECTIONSTRING) as azure_con:
+#             cursor = azure_con.cursor()
+#             for file in files:
+#                 if file.filename.endswith(".csv"):
+#                     file_name = file.filename
+#                     # table_name = os.path.splitext(file_name)[0]
+#                     table_name = file_name.rsplit(".", 1)[0]
+
+#                     data = []
+#                     head = 1
+#                     heads = []
+#                     contents = await file.read()  # Read the file contents
+#                     decoded_content = contents.decode("utf-8").splitlines()
+#                     csv_reader = csv.reader(decoded_content)
+#                     for row in csv_reader:
+#                         if head == 1:
+#                             heads = row
+#                             head += -1
+#                         else:
+#                             processed_row = [
+#                                 None if cell.strip() == "" else cell for cell in row
+#                             ]
+#                             data.append(processed_row)
+
+#                     for i in range(len(heads)):
+#                         heads[i] = heads[i].replace(".", "_")
+
+#                     # Insert data
+#                     for row in data:
+#                         placeholders = ",".join(["?"] * len(row))
+#                         columns = ",".join(heads)  # Replace dots with underscores
+#                         sql = f"INSERT INTO {new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
+#                         cursor.execute(sql, tuple(row))
+#                 else:
+#                     return {"error": "Please upload a CSV file."}
+#             azure_con.commit()
+#             return {"message": "Data imported successfully."}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
+# See above for comments
+@app.post("/Azure/Import/General")
 async def azure_mult_table(
     server_name: str,
     database_name: str,
@@ -306,20 +542,16 @@ async def azure_mult_table(
             for file in files:
                 if file.filename.endswith(".csv"):
                     file_name = file.filename
-                    # table_name = os.path.splitext(file_name)[0]
                     table_name = file_name.rsplit(".", 1)[0]
 
                     contents = await file.read()
 
                     df = pd.read_csv(StringIO(contents.decode("utf-8")))
-                    # df = pd.read_csv(file_name)
 
-                    # conn = pyodbc.connect(connection_string_17)
-
-                    # Create table
                     create_table_query = (
                         f"CREATE TABLE {new_schema_name}.{table_name} ("
                     )
+                    # Each column created is just NVARCHAR(MAX) since this is a general import
                     for column_name in df.columns:
                         column_name_cleaned = column_name.replace(
                             ".", "_"
@@ -335,6 +567,7 @@ async def azure_mult_table(
                         )  # Replace dots with underscores
                         sql = f"INSERT INTO {new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
                         row_clean = []
+                        # floats need to be changed to strings
                         for el in tuple(row):
                             if type(el) is float:
                                 row_clean.append(f"'{el}'")
@@ -350,190 +583,9 @@ async def azure_mult_table(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/azure/import/schema")
-async def azure_import_schema(
-    server_name: str,
-    database_name: str,
-    new_schema_name: str,
-    files: List[UploadFile] = File(...),
-):
-    try:
-        AZURE_SQL_CONNECTIONSTRING = (
-            "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30"
-            % (server_name, database_name)
-        )
-        with get_conn(AZURE_SQL_CONNECTIONSTRING) as azure_con:
-            cursor = azure_con.cursor()
-            if new_schema_name.strip().lower() != "dbo":
-                cursor.execute(f"USE {database_name};")
-                create_schema = f"CREATE SCHEMA {new_schema_name};"
-                cursor.execute(create_schema)
-            for file in files:
-                if file.filename.endswith(".csv"):
-                    file_name = file.filename
-                    # table_name = os.path.splitext(file_name)[0]
-                    table_name = file_name.rsplit(".", 1)[0]
-
-                    contents = await file.read()
-
-                    df = pd.read_csv(StringIO(contents.decode("utf-8")))
-                    # df = pd.read_csv(file_name)
-
-                    # conn = pyodbc.connect(connection_string_17)
-
-                    # Create table
-                    create_table_query = (
-                        f"CREATE TABLE {new_schema_name}.{table_name} ("
-                    )
-                    for index, row in df.iterrows():
-                        # column name (0)
-                        column_name_cleaned = tuple(row)[0].replace(
-                            ".", "_"
-                        )  # Replace dots with underscores
-                        # 1 (data type) 4 (max lenth) 5 (precision) 6 (scale)
-                        data_type = data_typer(
-                            tuple(row)[1], tuple(row)[4], tuple(row)[5], tuple(row)[6]
-                        )
-                        # null (2)
-                        nullable = nulls(tuple(row)[2])
-                        # primary key (3)
-                        # pk = primary(tuple(row)[3])
-                        # put together
-                        create_table_query += (
-                            f"{column_name_cleaned} {data_type}{nullable}, "
-                        )
-                    create_table_query = create_table_query[:-2] + ");"
-                    cursor.execute(create_table_query)
-                else:
-                    return {"error": "Please upload a CSV file."}
-            azure_con.commit()
-        return {"message": "Data imported successfully."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/azure/import/schema/data")
-async def azure_schema_data(
-    server_name: str,
-    database_name: str,
-    new_schema_name: str,
-    files: List[UploadFile] = File(...),
-):
-    try:
-        AZURE_SQL_CONNECTIONSTRING = (
-            "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30"
-            % (server_name, database_name)
-        )
-        with get_conn(AZURE_SQL_CONNECTIONSTRING) as azure_con:
-            cursor = azure_con.cursor()
-            for file in files:
-                if file.filename.endswith(".csv"):
-                    file_name = file.filename
-                    # table_name = os.path.splitext(file_name)[0]
-                    table_name = file_name.rsplit(".", 1)[0]
-
-                    data = []
-                    head = 1
-                    heads = []
-                    contents = await file.read()  # Read the file contents
-                    decoded_content = contents.decode("utf-8").splitlines()
-                    csv_reader = csv.reader(decoded_content)
-                    for row in csv_reader:
-                        if head == 1:
-                            heads = row
-                            head += -1
-                        else:
-                            processed_row = [
-                                None if cell.strip() == "" else cell for cell in row
-                            ]
-                            data.append(processed_row)
-
-                    for i in range(len(heads)):
-                        heads[i] = heads[i].replace(".", "_")
-
-                    # Insert data
-                    for row in data:
-                        placeholders = ",".join(["?"] * len(row))
-                        columns = ",".join(heads)  # Replace dots with underscores
-                        sql = f"INSERT INTO {new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
-                        cursor.execute(sql, tuple(row))
-                else:
-                    return {"error": "Please upload a CSV file."}
-            azure_con.commit()
-            return {"message": "Data imported successfully."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/azure/data")
-def azure_get_data(server_name: str, database_name: str):
-    try:
-        output = ""
-
-        AZURE_SQL_CONNECTIONSTRING = (
-            "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30"
-            % (server_name, database_name)
-        )
-        with get_conn(AZURE_SQL_CONNECTIONSTRING) as azure_con:
-            cursor = azure_con.cursor()
-            cursor.execute("""SELECT TABLE_SCHEMA, TABLE_NAME
-                FROM INFORMATION_SCHEMA.TABLES
-                WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE 'BuildVersion' AND TABLE_NAME NOT LIKE 'ErrorLog'""")
-
-            init_results = cursor.fetchall()
-
-            for table in init_results:
-                table_schema = table[0]
-                table_name = table[1]
-
-                cursor.execute(f"""SELECT DISTINCT c.name 'Column Name', t.Name 'Data type', c.is_nullable, ISNULL(i.is_primary_key, 0) 'Primary Key', 
-                                c.max_length 'Max Length', c.precision , c.scale
-                                FROM sys.columns c
-                                INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
-                                LEFT OUTER JOIN sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
-                                LEFT OUTER JOIN sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
-                                WHERE c.object_id = OBJECT_ID('{table_schema}.{table_name}')""")
-
-                column = []
-                results = cursor.fetchall()
-                for tupler in cursor.description:
-                    # get names of columns (first value in tuple)
-                    column.append(tupler[0])
-
-                create_csv(
-                    f"{database_name}/{table_schema}/schema",
-                    table_name,
-                    results,
-                    column,
-                )
-
-            for table in init_results:
-                if table != "table_name":
-                    table_schema = table[0]
-                    table_name = table[1]
-                    # select everything from each table, make into csv
-                    cursor.execute(f"select * from {table_schema}.{table_name};")
-                    table_result = cursor.fetchall()
-
-                    column = []
-                    for tupler in cursor.description:
-                        # get names of columns (first value in tuple)
-                        column.append(tupler[0])
-
-                    create_csv(
-                        f"{database_name}/{table_schema}/data",
-                        table_name,
-                        table_result,
-                        column,
-                    )
-
-            output = f"Files have been saved to: ./{database_name}"
-        return output
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
+# Creates connection to azure
 def get_conn(AZURE_SQL_CONNECTIONSTRING: str):
+    # Code comes directly from microsoft, check references
     credential = identity.DefaultAzureCredential(
         exclude_interactive_browser_credential=False
     )
@@ -551,15 +603,14 @@ def get_conn(AZURE_SQL_CONNECTIONSTRING: str):
     return conn
 
 
-# AWS
 ################################################################################################
 
 
-@app.get("/aws/tables")
+# For comments, refer to azure
+@app.get("/AWS/Export/Structure")
 def aws_get_tables(
     port: str, server: str, username: str, password: str, database_name: str
 ):
-    # PORT=1433;SERVER=monarch.cjgga6i4mae6.us-east-2.rds.amazonaws.com;UID=;PWD=;db=monarchdb
     try:
         conn = pyodbc.connect(
             "DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30"
@@ -592,7 +643,8 @@ def aws_get_tables(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/aws/data")
+# For comments, refer to azure
+@app.get("/AWS/Export/Data")
 def aws_get_data(
     port: str, server: str, username: str, password: str, database_name: str
 ):
@@ -636,7 +688,6 @@ def aws_get_data(
 
         for table in init_results:
             if table != "table_name":
-                #  print(type(table))
                 table_schema = table[0]
                 table_name = table[1]
                 # select everything from each table, make into csv
@@ -667,7 +718,109 @@ def aws_get_data(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/aws/import/double")
+# For comments, refer to azure
+@app.post("/AWS/Import/Schema")
+async def aws_import_schema(
+    port: str,
+    server: str,
+    username: str,
+    password: str,
+    database_name: str,
+    new_schema_name: str,
+    schema_files: List[UploadFile] = File(...),
+    data_files: List[UploadFile] = File(...),
+):
+    try:
+        conn = pyodbc.connect(
+            "DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30"
+            % (port, server, username, password)
+        )
+        cursor = conn.cursor()
+        if new_schema_name.strip().lower() != "dbo":
+            cursor.execute(f"USE {database_name};")
+            create_schema = f"CREATE SCHEMA {new_schema_name};"
+            cursor.execute(create_schema)
+        for file in schema_files:
+            if file.filename.endswith(".csv"):
+                file_name = file.filename
+                table_name = file_name.rsplit(".", 1)[0]
+
+                contents = await file.read()
+                df = pd.read_csv(StringIO(contents.decode("utf-8")))
+
+                # Create table
+                create_table_query = (
+                    f"CREATE TABLE {database_name}.{new_schema_name}.{table_name} ("
+                )
+                for index, row in df.iterrows():
+                    # column name (0)
+                    column_name_cleaned = tuple(row)[0].replace(
+                        ".", "_"
+                    )  # Replace dots with underscores
+                    # 1 (data type) 4 (max lenth) 5 (precision) 6 (scale)
+                    data_type = data_typer(
+                        tuple(row)[1], tuple(row)[4], tuple(row)[5], tuple(row)[6]
+                    )
+                    # null (2)
+                    nullable = nulls(tuple(row)[2])
+                    # primary key (3)
+                    # pk = primary(tuple(row)[3])
+                    # put together
+                    create_table_query += (
+                        f"{column_name_cleaned} {data_type}{nullable}, "
+                    )
+                create_table_query = create_table_query[:-2] + ");"
+                cursor.execute(create_table_query)
+            else:
+                cursor.close()
+                conn.close()
+                return {"error": "Please upload a CSV file."}
+        for file in data_files:
+            if file.filename.endswith(".csv"):
+                file_name = file.filename
+                table_name = file_name.rsplit(".", 1)[0]
+
+                data = []
+                head = 1
+                heads = []
+                contents = await file.read()  # Read the file contents
+                decoded_content = contents.decode("utf-8").splitlines()
+                csv_reader = csv.reader(decoded_content)
+                for row in csv_reader:
+                    if head == 1:
+                        heads = row
+                        head += -1
+                    else:
+                        processed_row = [
+                            None if cell.strip() == "" else cell for cell in row
+                        ]
+                        data.append(processed_row)
+
+                for i in range(len(heads)):
+                    heads[i] = heads[i].replace(".", "_")
+
+                # Insert data
+                for row in data:
+                    placeholders = ",".join(["?"] * len(row))
+                    columns = ",".join(heads)  # Replace dots with underscores
+                    sql = f"INSERT INTO {database_name}.{new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
+                    cursor.execute(sql, tuple(row))
+            else:
+                cursor.close()
+                conn.close()
+                return {"error": "Please upload a CSV file."}
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return {"message": "Data imported successfully."}
+    except Exception as e:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# For comments, refer to azure
+@app.post("/AWS/Import/General")
 async def aws_mult_table(
     port: str,
     server: str,
@@ -737,134 +890,64 @@ async def aws_mult_table(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/aws/import/schema")
-async def aws_import_schema(
-    port: str,
-    server: str,
-    username: str,
-    password: str,
-    database_name: str,
-    new_schema_name: str,
-    files: List[UploadFile] = File(...),
-):
-    try:
-        conn = pyodbc.connect(
-            "DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30"
-            % (port, server, username, password)
-        )
-        cursor = conn.cursor()
-        if new_schema_name.strip().lower() != "dbo":
-            cursor.execute(f"USE {database_name};")
-            create_schema = f"CREATE SCHEMA {new_schema_name};"
-            cursor.execute(create_schema)
-        for file in files:
-            if file.filename.endswith(".csv"):
-                file_name = file.filename
-                # table_name = os.path.splitext(file_name)[0]
-                table_name = file_name.rsplit(".", 1)[0]
+# @app.post("/aws/import/schema/data")
+# async def aws_mult_table(
+#     port: str,
+#     server: str,
+#     username: str,
+#     password: str,
+#     database_name: str,
+#     new_schema_name: str,
+#     files: List[UploadFile] = File(...),
+# ):
+#     try:
+#         conn = pyodbc.connect(
+#             "DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30"
+#             % (port, server, username, password)
+#         )
+#         cursor = conn.cursor()
+#         for file in files:
+#             if file.filename.endswith(".csv"):
+#                 file_name = file.filename
+#                 table_name = file_name.rsplit(".", 1)[0]
 
-                contents = await file.read()
+#                 data = []
+#                 head = 1
+#                 heads = []
+#                 contents = await file.read()  # Read the file contents
+#                 decoded_content = contents.decode("utf-8").splitlines()
+#                 csv_reader = csv.reader(decoded_content)
+#                 for row in csv_reader:
+#                     if head == 1:
+#                         heads = row
+#                         head += -1
+#                     else:
+#                         processed_row = [
+#                             None if cell.strip() == "" else cell for cell in row
+#                         ]
+#                         data.append(processed_row)
 
-                df = pd.read_csv(StringIO(contents.decode("utf-8")))
-                # df = pd.read_csv(file_name)
+#                 for i in range(len(heads)):
+#                     heads[i] = heads[i].replace(".", "_")
 
-                # conn = pyodbc.connect(connection_string_17)
-
-                # Create table
-                create_table_query = (
-                    f"CREATE TABLE {database_name}.{new_schema_name}.{table_name} ("
-                )
-                for index, row in df.iterrows():
-                    # column name (0)
-                    column_name_cleaned = tuple(row)[0].replace(
-                        ".", "_"
-                    )  # Replace dots with underscores
-                    # 1 (data type) 4 (max lenth) 5 (precision) 6 (scale)
-                    data_type = data_typer(
-                        tuple(row)[1], tuple(row)[4], tuple(row)[5], tuple(row)[6]
-                    )
-                    # null (2)
-                    nullable = nulls(tuple(row)[2])
-                    # primary key (3)
-                    # pk = primary(tuple(row)[3])
-                    # put together
-                    create_table_query += (
-                        f"{column_name_cleaned} {data_type}{nullable}, "
-                    )
-                create_table_query = create_table_query[:-2] + ");"
-                cursor.execute(create_table_query)
-            else:
-                cursor.close()
-                conn.close()
-                return {"error": "Please upload a CSV file."}
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return {"message": "Data imported successfully."}
-    except Exception as e:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/aws/import/schema/data")
-async def aws_mult_table(
-    port: str,
-    server: str,
-    username: str,
-    password: str,
-    database_name: str,
-    new_schema_name: str,
-    files: List[UploadFile] = File(...),
-):
-    try:
-        conn = pyodbc.connect(
-            "DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30"
-            % (port, server, username, password)
-        )
-        cursor = conn.cursor()
-        for file in files:
-            if file.filename.endswith(".csv"):
-                file_name = file.filename
-                table_name = file_name.rsplit(".", 1)[0]
-
-                data = []
-                head = 1
-                heads = []
-                contents = await file.read()  # Read the file contents
-                decoded_content = contents.decode("utf-8").splitlines()
-                csv_reader = csv.reader(decoded_content)
-                for row in csv_reader:
-                    if head == 1:
-                        heads = row
-                        head += -1
-                    else:
-                        processed_row = [
-                            None if cell.strip() == "" else cell for cell in row
-                        ]
-                        data.append(processed_row)
-
-                for i in range(len(heads)):
-                    heads[i] = heads[i].replace(".", "_")
-
-                # Insert data
-                for row in data:
-                    placeholders = ",".join(["?"] * len(row))
-                    columns = ",".join(heads)  # Replace dots with underscores
-                    sql = f"INSERT INTO {database_name}.{new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
-                    cursor.execute(sql, tuple(row))
-            else:
-                cursor.close()
-                conn.close()
-                return {"error": "Please upload a CSV file."}
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return {"message": "Data imported successfully."}
-    except Exception as e:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=500, detail=str(e))
+#                 # Insert data
+#                 for row in data:
+#                     placeholders = ",".join(["?"] * len(row))
+#                     columns = ",".join(heads)  # Replace dots with underscores
+#                     sql = f"INSERT INTO {database_name}.{new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
+#                     cursor.execute(sql, tuple(row))
+#             else:
+#                 cursor.close()
+#                 conn.close()
+#                 return {"error": "Please upload a CSV file."}
+#         conn.commit()
+#         cursor.close()
+#         conn.close()
+#         return {"message": "Data imported successfully."}
+#     except Exception as e:
+#         cursor.close()
+#         conn.close()
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 ###############################################################################################################################
