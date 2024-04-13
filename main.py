@@ -467,59 +467,6 @@ async def azure_import_schema(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# @app.post("/azure/import/schema/data")
-# async def azure_schema_data(
-#     server_name: str,
-#     database_name: str,
-#     new_schema_name: str,
-#     files: List[UploadFile] = File(...),
-# ):
-#     try:
-#         AZURE_SQL_CONNECTIONSTRING = (
-#             "Driver={ODBC Driver 18 for SQL Server};Server=tcp:%s.database.windows.net,1433;Database=%s;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30"
-#             % (server_name, database_name)
-#         )
-#         with get_conn(AZURE_SQL_CONNECTIONSTRING) as azure_con:
-#             cursor = azure_con.cursor()
-#             for file in files:
-#                 if file.filename.endswith(".csv"):
-#                     file_name = file.filename
-#                     # table_name = os.path.splitext(file_name)[0]
-#                     table_name = file_name.rsplit(".", 1)[0]
-
-#                     data = []
-#                     head = 1
-#                     heads = []
-#                     contents = await file.read()  # Read the file contents
-#                     decoded_content = contents.decode("utf-8").splitlines()
-#                     csv_reader = csv.reader(decoded_content)
-#                     for row in csv_reader:
-#                         if head == 1:
-#                             heads = row
-#                             head += -1
-#                         else:
-#                             processed_row = [
-#                                 None if cell.strip() == "" else cell for cell in row
-#                             ]
-#                             data.append(processed_row)
-
-#                     for i in range(len(heads)):
-#                         heads[i] = heads[i].replace(".", "_")
-
-#                     # Insert data
-#                     for row in data:
-#                         placeholders = ",".join(["?"] * len(row))
-#                         columns = ",".join(heads)  # Replace dots with underscores
-#                         sql = f"INSERT INTO {new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
-#                         cursor.execute(sql, tuple(row))
-#                 else:
-#                     return {"error": "Please upload a CSV file."}
-#             azure_con.commit()
-#             return {"message": "Data imported successfully."}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
 # See above for comments
 @app.post("/Azure/Import/General")
 async def azure_mult_table(
@@ -888,66 +835,6 @@ async def aws_mult_table(
         cursor.close()
         conn.close()
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# @app.post("/aws/import/schema/data")
-# async def aws_mult_table(
-#     port: str,
-#     server: str,
-#     username: str,
-#     password: str,
-#     database_name: str,
-#     new_schema_name: str,
-#     files: List[UploadFile] = File(...),
-# ):
-#     try:
-#         conn = pyodbc.connect(
-#             "DRIVER={ODBC Driver 18 for SQL Server};PORT=%s;SERVER=%s;UID=%s;PWD=%s;Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=30"
-#             % (port, server, username, password)
-#         )
-#         cursor = conn.cursor()
-#         for file in files:
-#             if file.filename.endswith(".csv"):
-#                 file_name = file.filename
-#                 table_name = file_name.rsplit(".", 1)[0]
-
-#                 data = []
-#                 head = 1
-#                 heads = []
-#                 contents = await file.read()  # Read the file contents
-#                 decoded_content = contents.decode("utf-8").splitlines()
-#                 csv_reader = csv.reader(decoded_content)
-#                 for row in csv_reader:
-#                     if head == 1:
-#                         heads = row
-#                         head += -1
-#                     else:
-#                         processed_row = [
-#                             None if cell.strip() == "" else cell for cell in row
-#                         ]
-#                         data.append(processed_row)
-
-#                 for i in range(len(heads)):
-#                     heads[i] = heads[i].replace(".", "_")
-
-#                 # Insert data
-#                 for row in data:
-#                     placeholders = ",".join(["?"] * len(row))
-#                     columns = ",".join(heads)  # Replace dots with underscores
-#                     sql = f"INSERT INTO {database_name}.{new_schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
-#                     cursor.execute(sql, tuple(row))
-#             else:
-#                 cursor.close()
-#                 conn.close()
-#                 return {"error": "Please upload a CSV file."}
-#         conn.commit()
-#         cursor.close()
-#         conn.close()
-#         return {"message": "Data imported successfully."}
-#     except Exception as e:
-#         cursor.close()
-#         conn.close()
-#         raise HTTPException(status_code=500, detail=str(e))
 
 
 ###############################################################################################################################
