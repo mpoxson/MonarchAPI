@@ -37,13 +37,13 @@ http://127.0.0.1:8000/docs
 
 - POST /Migrate/AWS_To_Azure: Same as above except going from AWS db to Azure db
 
-- GET /Export/Structure: Connects to db and returns a csv file with the structure of your database in terms of schemas and tables within schema
+- GET /Azure/Export/Structure and GET /AWS/Export/Structure: Connects to db and returns a csv file with the structure of your database in terms of schemas and tables within schema
 
-- GET /Export/Data: Connects to db and creates a folder for the database on your local file system. Creates a folder for each schema in the database, and in each folder two more folders are created. One folder is called "schema" and has a csv file for each table in that schema, where each table's name is the name of the csv. In each csv is all the columns of in the table and their attributes (length, precision, scale, null, primary key). The other folder is called "data" and has the same structure, except the csv files are comprised of the actual rows in the table.
+- GET /Azure/Export/Data and GET /AWS/Export/Data: Connects to db and creates a folder for the database on your local file system. Creates a folder for each schema in the database, and in each folder two more folders are created. One folder is called "schema" and has a csv file for each table in that schema, where each table's name is the name of the csv. In each csv is all the columns of in the table and their attributes (length, precision, scale, null, primary key). The other folder is called "data" and has the same structure, except the csv files are comprised of the actual rows in the table.
 
-- POST /Export/Data: Takes in a list of the above schema files and above data files. A new schema is created using the one specified (if dbo, nothing is created). The files are looped through and the api takes the schema files and creates tables using the column names and information in the csv files. After the schema files are looped through, the data files are looped through and the data is inserted into the tables. Order does not matter.
+- POST /Azure/Import/Schema and POST /AWS/Import/Schema: Takes in a list of the above schema files and above data files. A new schema is created using the one specified (if dbo, nothing is created). The files are looped through and the api takes the schema files and creates tables using the column names and information in the csv files. After the schema files are looped through, the data files are looped through and the data is inserted into the tables. Order does not matter.
 
-- POST /Import/General: Takes in a list of the above data files and creates tables using the names of the csv files. A new schema is created using the provided name (if dbo, nothing will be created). The columns will all be nvarchar(max)— hence the general upload. The data from the files will be inserted into the new tables.
+- POST /Azure/Import/General and POST /AWS/Import/General: Takes in a list of the above data files and creates tables using the names of the csv files. A new schema is created using the provided name (if dbo, nothing will be created). The columns will all be nvarchar(max)— hence the general upload. The data from the files will be inserted into the new tables.
 
 # References used
 
