@@ -1,6 +1,6 @@
 # MonarchAPI
 
-- PLEASE USE THE MURPHY BRANCH
+- PLEASE USE THE DEMO BRANCH
 
 - Download python (3.10 or higher)
 - Download ODBC Driver 18 for SQL Server
