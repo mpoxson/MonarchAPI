@@ -7,7 +7,10 @@ from typing import List
 import pandas as pd
 import pyodbc
 from azure import identity
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Query
+from fastapi.responses import HTMLResponse
+from fastapi.requests import Request
+
 
 app = FastAPI()
 
@@ -17,18 +20,363 @@ async def root():
     return {"message": "Hello World"}
 
 
+# Forms
+#####################################################################################################################################
+
+
+@app.get("/Migrate/AWS_To_Azure/Form", response_class=HTMLResponse)
+async def aws_to_azure_form():
+    return """
+    <html>
+    <head>
+        <title>Migrate AWS to Azure</title>
+    </head>
+    <body>
+        <h1>Migrate AWS to Azure</h1>
+        <form action="/Migrate/AWS_To_Azure" method="post" enctype="multipart/form-data">
+
+            <label for="azure_server_name">Azure Server Name:</label><br>
+            <input type="text" id="azure_server_name" name="azure_server_name" required><br><br>
+
+            <label for="azure_database_name">Azure Database Name:</label><br>
+            <input type="text" id="azure_database_name" name="azure_database_name" required><br><br>
+
+            <label for="aws_port">AWS Port::</label><br>
+            <input type="text" id="aws_port" name="aws_port" required><br><br>
+
+            <label for="aws_server">AWS Server:</label><br>
+            <input type="text" id="aws_server" name="aws_server" required><br><br>
+
+            <label for="aws_username">AWS Username:</label><br>
+            <input type="text" id="aws_username" name="aws_username" required><br><br>
+
+            <label for="aws_password">AWS Password:</label><br>
+            <input type="password" id="aws_password" name="aws_password" required><br><br>
+
+            <label for="aws_database_name">AWS Database Name:</label><br>
+            <input type="text" id="aws_database_name" name="aws_database_name" required><br><br>
+
+            <input type="submit" value="Migrate">
+        </form>
+    </body>
+    </html>
+    """
+
+
+@app.get("/Migrate/Azure_To_AWS/Form", response_class=HTMLResponse)
+async def azure_to_aws_form():
+    return """
+    <html>
+    <head>
+        <title>Migrate Azure to AWS</title>
+    </head>
+    <body>
+        <h1>Migrate Azure to AWS</h1>
+        <form action="/Migrate/Azure_To_AWS" method="post" enctype="multipart/form-data">
+
+            <label for="azure_server_name">Azure Server Name:</label><br>
+            <input type="text" id="azure_server_name" name="azure_server_name" required><br><br>
+
+            <label for="azure_database_name">Azure Database Name:</label><br>
+            <input type="text" id="azure_database_name" name="azure_database_name" required><br><br>
+
+            <label for="aws_port">AWS Port:</label><br>
+            <input type="text" id="aws_port" name="aws_port" required><br><br>
+
+            <label for="aws_server">AWS Server:</label><br>
+            <input type="text" id="aws_server" name="aws_server" required><br><br>
+
+            <label for="aws_username">AWS Username:</label><br>
+            <input type="text" id="aws_username" name="aws_username" required><br><br>
+
+            <label for="aws_password">AWS Password:</label><br>
+            <input type="password" id="aws_password" name="aws_password" required><br><br>
+
+            <label for="aws_database_name">AWS Database Name:</label><br>
+            <input type="text" id="aws_database_name" name="aws_database_name" required><br><br>
+
+            <input type="submit" value="Migrate">
+        </form>
+    </body>
+    </html>
+    """
+
+
+@app.get("/Azure/Import/General/Form", response_class=HTMLResponse)
+async def azure_import_general_form():
+    return """
+    <html>
+    <head>
+        <title>Upload Files to Azure SQL</title>
+    </head>
+    <body>
+        <h1>Upload Files to Azure SQL</h1>
+        <form action="/Azure/Import/General" method="post" enctype="multipart/form-data">
+            <label for="server_name">Server Name:</label><br>
+            <input type="text" id="server_name" name="server_name" required><br><br>
+
+            <label for="database_name">Database Name:</label><br>
+            <input type="text" id="database_name" name="database_name" required><br><br>
+
+            <label for="username">Username:</label><br>
+            <input type="text" id="username" name="username" required><br><br>
+
+            <label for="password">Password:</label><br>
+            <input type="password" id="password" name="password" required><br><br>
+
+            <label for="new_schema_name">New Schema Name:</label><br>
+            <input type="text" id="new_schema_name" name="new_schema_name" required><br><br>
+
+            <label for="schema_files">Schema Files (CSV):</label><br>
+            <input type="file" id="schema_files" name="schema_files" accept=".csv" multiple required><br><br>
+
+
+            <input type="submit" value="Upload">
+        </form>
+    </body>
+    </html>
+    """
+
+
+@app.get("/Azure/Import/Schema/Form", response_class=HTMLResponse)
+async def azure_import_schema_form():
+    return """
+    <html>
+    <head>
+        <title>Upload Schema and Data Files</title>
+    </head>
+    <body>
+        <h1>Upload Schema and Data Files</h1>
+        <form action="/Azure/Import/Schema" method="post" enctype="multipart/form-data">
+            <label for="server_name">Server Name:</label><br>
+            <input type="text" id="server_name" name="server_name" required><br><br>
+
+            <label for="database_name">Database Name:</label><br>
+            <input type="text" id="database_name" name="database_name" required><br><br>
+
+            <label for="new_schema_name">New Schema Name:</label><br>
+            <input type="text" id="new_schema_name" name="new_schema_name" required><br><br>
+
+            <label for="schema_files">Schema Files (CSV):</label><br>
+            <input type="file" id="schema_files" name="schema_files" accept=".csv" multiple required><br><br>
+
+            <label for="data_files">Data Files (CSV):</label><br>
+            <input type="file" id="data_files" name="data_files" accept=".csv" multiple required><br><br>
+
+            <input type="submit" value="Upload">
+        </form>
+    </body>
+    </html>
+    """
+
+
+azure_export_structure_form = """
+<html>
+<head>
+    <title>Export Schema Structure from Azure SQL</title>
+</head>
+<body>
+    <h1>Export Schema Structure from Azure SQL</h1>
+    <form action="/Azure/Export/Structure" method="get" enctype="multipart/form-data">
+        <label for="server_name">Server Name:</label><br>
+        <input type="text" id="server_name" name="server_name" required><br>
+
+        <label>Database Name:</label><br>
+        <input type="text" id="database_name" name="database_name" required><br>
+
+        <input type="submit" value="Export">
+    </form>
+</body>
+</html>
+"""
+
+
+@app.get("/Azure/Export/Structure/Form", response_class=HTMLResponse)
+async def azure_get_tables_form():
+    return azure_export_structure_form
+
+
+@app.get("/Azure/Export/Data/Form", response_class=HTMLResponse)
+async def aws__form():
+    return """
+         <!DOCTYPE html>
+<   html>
+<head>
+    <title>Export Tables from Azure SQL</title>
+</head>
+<body>
+    <h1>Export Tables from Azure SQL</h1>
+    <form action="/Azure/Export/Data" method="get" enctype="multipart/form-data">
+        <label>Server Name:</label><br>
+        <input type="text" name="server_name"><br>
+        <label>Database Name:</label><br>
+        <input type="text" name="database_name"><br>
+        <input type="submit" value="Export">
+    </form>
+</body>
+</html>
+"""
+
+
+aws_import_general_form = """
+    <html>
+    <head>
+        <title>Upload Schema and Data Files</title>
+    </head>
+    <body>
+        <h1>Upload Schema and Data Files</h1>
+        <form action="/AWS/Import/General/" method="post" enctype="multipart/form-data">
+            <label for="port">Port:</label><br>
+            <input type="text" id="port" name="port" required><br><br>
+
+            <label for="server">Server Name:</label><br>
+            <input type="text" id="server" name="server" required><br><br>
+
+            <label for="database_name">Database Name:</label><br>
+            <input type="text" id="database_name" name="database_name" required><br><br>
+
+            <label for="username">Username:</label><br>
+            <input type="text" id="username" name="username" required><br><br>
+
+            <label for="password">Password:</label><br>
+            <input type="password" id="password" name="password" required><br><br>
+
+            <label for="new_schema_name">New Schema Name:</label><br>
+            <input type="text" id="new_schema_name" name="new_schema_name" required><br><br>
+
+            <label for="files">Files (CSV):</label><br>
+            <input type="file" id="files" name="files" accept=".csv" multiple required><br><br>
+
+            <input type="submit" value="Upload">
+        </form>
+    </body>
+    </html>
+    """
+
+
+@app.get("/AWS/Import/General/Form", response_class=HTMLResponse)
+async def aws_general_import_form():
+    return aws_import_general_form
+
+
+@app.get("/AWS/Export/Data/Form", response_class=HTMLResponse)
+async def aws_schema_form():
+    return """
+    <html>
+    <head>
+        <title>Export Schema and Data Files</title>
+    </head>
+    <body>
+        <h1>Export Schema and Data Files</h1>
+        <form action="/AWS/Export/Data" method="get" enctype="multipart/form-data">
+            <label for="port">Port:</label><br>
+            <input type="text" id="port" name="port" required><br><br>
+
+            <label for="server">Server Name:</label><br>
+            <input type="text" id="server" name="server" required><br><br>
+
+            <label for="database_name">Database Name:</label><br>
+            <input type="text" id="database_name" name="database_name" required><br><br>
+
+            <label for="username">Username:</label><br>
+            <input type="text" id="username" name="username" required><br><br>
+
+            <label for="password">Password:</label><br>
+            <input type="password" id="password" name="password" required><br><br>
+
+            <input type="submit" value="Submit">
+        </form>
+    </body>
+    </html>
+    """
+
+
+@app.get("/AWS/Export/Structure/Form", response_class=HTMLResponse)
+async def aws_schema_form():
+    return """
+    <html>
+    <head>
+        <title>Export Schema Structure</title>
+    </head>
+    <body>
+        <h1>Export Schema Structure</h1>
+        <form action="/AWS/Export/Structure" method="get" enctype="multipart/form-data">
+            <label for="port">Port:</label><br>
+            <input type="text" id="port" name="port" required><br><br>
+
+            <label for="server">Server Name:</label><br>
+            <input type="text" id="server" name="server" required><br><br>
+
+            <label for="database_name">Database Name:</label><br>
+            <input type="text" id="database_name" name="database_name" required><br><br>
+
+            <label for="username">Username:</label><br>
+            <input type="text" id="username" name="username" required><br><br>
+
+            <label for="password">Password:</label><br>
+            <input type="password" id="password" name="password" required><br><br>
+
+            <input type="submit" value="Upload">
+        </form>
+    </body>
+    </html>
+    """
+
+
+@app.get("/AWS/Import/Schema/Form", response_class=HTMLResponse)
+async def aws_import_schema_form():
+    return """
+    <html>
+    <head>
+        <title>Upload Schema and Data Files</title>
+    </head>
+    <body>
+        <h1>Upload Schema and Data Files</h1>
+        <form action="/AWS/Import/Schema" method="post" enctype="multipart/form-data">
+            <label for="port">Port:</label><br>
+            <input type="text" id="port" name="port" required><br><br>
+
+            <label for="server">Server Name:</label><br>
+            <input type="text" id="server" name="server" required><br><br>
+
+            <label for="database_name">Database Name:</label><br>
+            <input type="text" id="database_name" name="database_name" required><br><br>
+
+            <label for="username">Username:</label><br>
+            <input type="text" id="username" name="username" required><br><br>
+
+            <label for="password">Password:</label><br>
+            <input type="password" id="password" name="password" required><br><br>
+
+            <label for="new_schema_name">New Schema Name:</label><br>
+            <input type="text" id="new_schema_name" name="new_schema_name" required><br><br>
+
+            <label for="schema_files">Schema Files (CSV):</label><br>
+            <input type="file" id="schema_files" name="schema_files" accept=".csv" multiple required><br><br>
+
+            <label for="data_files">Data Files (CSV):</label><br>
+            <input type="file" id="data_files" name="data_files" accept=".csv" multiple required><br><br>
+
+            <input type="submit" value="Upload">
+        </form>
+    </body>
+    </html>
+    """
+
+
 ##############################################################################################################################################
 
 
 @app.post("/Migrate/Azure_To_AWS")
 async def azure_to_aws(
-    azure_server_name: str,
-    azure_database_name: str,
-    aws_port: str,
-    aws_server: str,
-    aws_username: str,
-    aws_password: str,
-    aws_database_name: str,
+    request: Request,
+    azure_server_name: str = Form(...),
+    azure_database_name: str = Form(...),
+    aws_port: str = Form(...),
+    aws_server: str = Form(...),
+    aws_username: str = Form(...),
+    aws_password: str = Form(...),
+    aws_database_name: str = Form(...),
 ):
     try:
         # connect to aws
@@ -149,13 +497,14 @@ async def azure_to_aws(
 # For comments, refer to above. Same process different direction.
 @app.post("/Migrate/AWS_To_Azure")
 async def aws_to_azure(
-    azure_server_name: str,
-    azure_database_name: str,
-    aws_port: str,
-    aws_server: str,
-    aws_username: str,
-    aws_password: str,
-    aws_database_name: str,
+    request: Request,
+    azure_server_name: str = Form(...),
+    azure_database_name: str = Form(...),
+    aws_port: str = Form(...),
+    aws_server: str = Form(...),
+    aws_username: str = Form(...),
+    aws_password: str = Form(...),
+    aws_database_name: str = Form(...),
 ):
     try:
         aws_con = pyodbc.connect(
@@ -252,7 +601,11 @@ async def aws_to_azure(
 
 
 @app.get("/Azure/Export/Structure")
-def azure_get_tables(server_name: str, database_name: str):
+async def azure_get_tables(
+    request: Request,
+    server_name: str = Query(...),
+    database_name: str = Query(...),
+):
     try:
         output = ""
         column = []
@@ -285,7 +638,11 @@ def azure_get_tables(server_name: str, database_name: str):
 
 
 @app.get("/Azure/Export/Data")
-def azure_get_data(server_name: str, database_name: str):
+def azure_get_data(
+    request: Request,
+    server_name: str = Query(...),
+    database_name: str = Query(...),
+):
     try:
         output = ""
         # connect to azure
@@ -361,9 +718,10 @@ def azure_get_data(server_name: str, database_name: str):
 
 @app.post("/Azure/Import/Schema")
 async def azure_import_schema(
-    server_name: str,
-    database_name: str,
-    new_schema_name: str,
+    request: Request,
+    server_name: str = Form(...),
+    database_name: str = Form(...),
+    new_schema_name: str = Form(...),
     schema_files: List[UploadFile] = File(...),
     data_files: List[UploadFile] = File(...),
 ):
@@ -470,9 +828,10 @@ async def azure_import_schema(
 # See above for comments
 @app.post("/Azure/Import/General")
 async def azure_mult_table(
-    server_name: str,
-    database_name: str,
-    new_schema_name: str,
+    request: Request,
+    server_name: str = Form(...),
+    database_name: str = Form(...),
+    new_schema_name: str = Form(...),
     files: List[UploadFile] = File(...),
 ):
     try:
@@ -556,7 +915,12 @@ def get_conn(AZURE_SQL_CONNECTIONSTRING: str):
 # For comments, refer to azure
 @app.get("/AWS/Export/Structure")
 def aws_get_tables(
-    port: str, server: str, username: str, password: str, database_name: str
+    request: Request,
+    port: str = Query(...),
+    server: str = Query(...),
+    username: str = Query(...),
+    password: str = Query(...),
+    database_name: str = Query(...),
 ):
     try:
         conn = pyodbc.connect(
@@ -593,7 +957,12 @@ def aws_get_tables(
 # For comments, refer to azure
 @app.get("/AWS/Export/Data")
 def aws_get_data(
-    port: str, server: str, username: str, password: str, database_name: str
+    request: Request,
+    port: str = Query(...),
+    server: str = Query(...),
+    username: str = Query(...),
+    password: str = Query(...),
+    database_name: str = Query(...),
 ):
     try:
         output = ""
@@ -668,12 +1037,13 @@ def aws_get_data(
 # For comments, refer to azure
 @app.post("/AWS/Import/Schema")
 async def aws_import_schema(
-    port: str,
-    server: str,
-    username: str,
-    password: str,
-    database_name: str,
-    new_schema_name: str,
+    request: Request,
+    port: str = Form(...),
+    server: str = Form(...),
+    username: str = Form(...),
+    password: str = Form(...),
+    database_name: str = Form(...),
+    new_schema_name: str = Form(...),
     schema_files: List[UploadFile] = File(...),
     data_files: List[UploadFile] = File(...),
 ):
@@ -769,12 +1139,12 @@ async def aws_import_schema(
 # For comments, refer to azure
 @app.post("/AWS/Import/General")
 async def aws_mult_table(
-    port: str,
-    server: str,
-    username: str,
-    password: str,
-    database_name: str,
-    new_schema_name: str,
+    port: str = Form(...),
+    server: str = Form(...),
+    username: str = Form(...),
+    password: str = Form(...),
+    database_name: str = Form(...),
+    new_schema_name: str = Form(...),
     files: List[UploadFile] = File(...),
 ):
     try:
@@ -832,8 +1202,6 @@ async def aws_mult_table(
         conn.close()
         return {"message": "Data imported successfully."}
     except Exception as e:
-        cursor.close()
-        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 
