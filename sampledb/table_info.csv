@@ -1,0 +1,14 @@
+TABLE_SCHEMA,TABLE_NAME
+dbo,marital_status
+dbo,locations
+dbo,customers-100
+SalesLT,Customer
+SalesLT,ProductModel
+SalesLT,ProductDescription
+SalesLT,Product
+SalesLT,ProductModelProductDescription
+SalesLT,ProductCategory
+SalesLT,Address
+SalesLT,CustomerAddress
+SalesLT,SalesOrderDetail
+SalesLT,SalesOrderHeader

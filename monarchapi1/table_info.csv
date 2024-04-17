@@ -1,0 +1,4 @@
+TABLE_SCHEMA,TABLE_NAME
+monarchapi1,customers-100
+monarchapi1,locations
+monarchapi1,marital_status
