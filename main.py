@@ -110,10 +110,10 @@ azure_export_structure_form = """
     <h1>Export Schema Structure From Azure</h1>
     <form action="/Azure/Export/Structure" method="get" enctype="multipart/form-data">
         <label for="server_name">Server Name:</label><br>
-        <input type="text" id="server_name" name="server_name" required><br>
+        <input type="text" id="server_name" name="server_name" required><br><br>
 
         <label for="database_name">Database Name:</label><br>
-        <input type="text" id="database_name" name="database_name" required><br>
+        <input type="text" id="database_name" name="database_name" required><br><br>
 
         <input type="submit" value="Export">
     </form>
@@ -138,10 +138,10 @@ async def aws__form():
     <h1>Export Data From Azure</h1>
     <form action="/Azure/Export/Data" method="get" enctype="multipart/form-data">
         <label for="server_name">Server Name:</label><br>
-        <input type="text" id="server_name" name="server_name"><br>
+        <input type="text" id="server_name" name="server_name" required><br><br>
 
         <label for="database_name">Database Name:</label><br>
-        <input type="text" id="database_name" name="database_name"><br>
+        <input type="text" id="database_name" name="database_name" required><br><br>
 
         <input type="submit" value="Export">
     </form>
