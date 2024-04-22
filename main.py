@@ -16,7 +16,15 @@ app = FastAPI()
 
 @app.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {
+        "Form Routes": {
+            "Migrate": ["/Migrate/Azure_To_AWS/Form", "/Migrate/AWS_To_Azure/Form"],
+            "Azure Export": ["/Azure/Export/Structure/Form", "/Azure/Export/Data/Form"],
+            "Azure Import": ["/Azure/Import/Schema/Form", "/Azure/Import/General/Form"],
+            "AWS Export": ["/AWS/Export/Structure/Form", "/AWS/Export/Data/Form"],
+            "AWS Import": ["/AWS/Import/Schema/Form", "/AWS/Import/General/Form"],
+        }
+    }
 
 
 # Forms
