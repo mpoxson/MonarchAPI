@@ -1,10 +1,11 @@
 # MonarchAPI
 
 - PLEASE USE THE MAIN BRANCH
-- When testing both directions, please make sure delete the data before switching directions if using the same databases (will say that schema is already created)
+- When testing both directions, please make sure to delete the data before switching directions if using the same databases (will say that schema is already created)
 - In Azure, you can test if data was imported successfully using the SQL Editor
 - In AWS, you can test if data was imported successfully using SQL Server Management Studio and connecting using the same information supplied in the form
-- Murphy successfully tested each route manually, please contact him if there is an error or you need help setting up/connecting to a test database in either platform 
+- Exports will be saved relative to where the app is being run
+- Murphy successfully tested each route manually, please contact him if there is an error or you need help setting up/connecting to a test database in either platform
 
 # Dependencies
 
